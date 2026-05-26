@@ -1,0 +1,6 @@
+{
+  "name": "Saldo Positivo",
+  "description": "Seu controle financeiro pessoal inteligente para planejar, organizar e liquidar todas as suas dívidas de forma estratégica e motivadora com IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
