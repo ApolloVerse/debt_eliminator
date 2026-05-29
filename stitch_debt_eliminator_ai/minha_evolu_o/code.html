@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Saldo Positivo - Histórico e Evolução</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .chart-container {
+            height: 200px;
+            position: relative;
+        }
+        .progress-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dash 3s ease-in-out forwards;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: 0; }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-bright": "#f7f9fc",
+                      "secondary-fixed": "#d6e3ff",
+                      "primary": "#670090",
+                      "surface-dim": "#d8dadd",
+                      "tertiary-fixed": "#3effbf",
+                      "on-surface-variant": "#4f4253",
+                      "primary-fixed-dim": "#eab2ff",
+                      "outline-variant": "#d3c1d5",
+                      "on-tertiary-fixed-variant": "#005139",
+                      "surface-tint": "#941cc7",
+                      "primary-fixed": "#f7d8ff",
+                      "on-tertiary-fixed": "#002115",
+                      "surface-container": "#eceef1",
+                      "background": "#f7f9fc",
+                      "error": "#ba1a1a",
+                      "on-primary-fixed": "#320047",
+                      "surface-container-low": "#f2f4f7",
+                      "on-secondary-fixed-variant": "#31476b",
+                      "on-tertiary-container": "#00e6a9",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-container": "#006246",
+                      "secondary-fixed-dim": "#b1c7f2",
+                      "error-container": "#ffdad6",
+                      "tertiary": "#004832",
+                      "primary-container": "#8a05be",
+                      "surface-variant": "#e0e3e6",
+                      "inverse-primary": "#eab2ff",
+                      "on-secondary-container": "#445a7f",
+                      "inverse-on-surface": "#eff1f4",
+                      "on-tertiary": "#ffffff",
+                      "on-error-container": "#93000a",
+                      "surface-container-high": "#e6e8eb",
+                      "on-error": "#ffffff",
+                      "on-primary": "#ffffff",
+                      "secondary": "#495f84",
+                      "surface": "#f7f9fc",
+                      "secondary-container": "#bcd2fe",
+                      "on-primary-fixed-variant": "#7400a0",
+                      "on-secondary": "#ffffff",
+                      "inverse-surface": "#2d3133",
+                      "tertiary-fixed-dim": "#00e1a5",
+                      "surface-container-highest": "#e0e3e6",
+                      "on-secondary-fixed": "#001b3d",
+                      "on-background": "#191c1e",
+                      "on-surface": "#191c1e",
+                      "on-primary-container": "#edb9ff",
+                      "outline": "#817284"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-mobile": "20px",
+                      "xs": "4px",
+                      "sm": "8px",
+                      "lg": "24px",
+                      "xl": "32px",
+                      "md": "16px",
+                      "xxl": "48px",
+                      "gutter": "16px",
+                      "unidade": "4px",
+                      "margin-desktop": "40px"
+              },
+              "fontFamily": {
+                      "titulo-md": ["Outfit"],
+                      "titulo-xl": ["Outfit"],
+                      "corpo-sm": ["Inter"],
+                      "botao": ["Outfit"],
+                      "titulo-xl-mobile": ["Outfit"],
+                      "titulo-lg": ["Outfit"],
+                      "corpo-lg": ["Inter"],
+                      "corpo-md": ["Inter"],
+                      "legenda": ["Inter"]
+              },
+              "fontSize": {
+                      "titulo-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "titulo-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "corpo-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "botao": ["16px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                      "titulo-xl-mobile": ["28px", {"lineHeight": "34px", "fontWeight": "700"}],
+                      "titulo-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "corpo-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "corpo-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "legenda": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-corpo-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md shadow-sm h-16 flex justify-between items-center px-margin-mobile">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container text-[20px]" data-weight="fill">account_balance_wallet</span>
+</div>
+<h1 class="font-titulo-md text-titulo-md font-bold text-primary">Saldo Positivo</h1>
+</div>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container transition-colors p-sm rounded-full active:scale-95 duration-200">notifications</button>
+<img alt="Avatar" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="A clean, professional headshot of a smiling young adult with neutral office lighting. The person has a friendly expression and is wearing a smart casual outfit. The background is a soft, out-of-focus modern workspace with subtle purple and blue ambient light, matching the fintech brand aesthetic. High-quality photography, sharp focus on eyes, warm skin tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWpKqWWpsRviCXC1LzmZ9GckFXXSyBJB0g45kq53_9PJbdqxdsDUcrMyaOG_-QyqJrJr1XWZv57ugaJqMXtZCjj1cAGyzpSBJkDjWX_5WISlvrr6x74rJ55YlRu2foMzuc3awv9RRPoTpIvndHtnPp-6ukqTqbYsAYaZmVPnuFXeMKfi-xxEH2jBPX_SYol1QzTwypOHkS7a47xS4J7mvdTEHcOCqO7AaKqC6NGz8dfiH57wOfNQmvB7MgYyaPHN502uaeWFhzvSY"/>
+</div>
+</header>
+<main class="pt-24 pb-32 px-margin-mobile md:px-margin-desktop max-w-6xl mx-auto space-y-xl">
+<!-- Header Section -->
+<section class="space-y-xs">
+<h2 class="font-titulo-xl-mobile md:font-titulo-xl text-titulo-xl-mobile md:text-titulo-xl text-on-surface">Minha Evolução</h2>
+<p class="text-on-surface-variant font-corpo-md">Veja como você está recuperando sua liberdade financeira.</p>
+</section>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-lg">
+<!-- Main Progress Chart -->
+<div class="md:col-span-8 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-lg shadow-sm">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-titulo-md text-titulo-md text-on-surface">Redução da Dívida</h3>
+<p class="text-legenda font-legenda text-on-surface-variant uppercase tracking-wider">Últimos 6 meses</p>
+</div>
+<div class="text-right">
+<span class="text-tertiary font-titulo-md text-titulo-md">-R$ 12.450</span>
+<p class="text-legenda font-legenda text-tertiary">QUITADO TOTAL</p>
+</div>
+</div>
+<div class="chart-container flex items-end justify-between px-2 pt-8">
+<!-- SVG Chart Visualization -->
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none">
+<defs>
+<lineargradient id="chartGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#8A05BE;stop-opacity:0.2"></stop>
+<stop offset="100%" style="stop-color:#8A05BE;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+<path class="progress-line" d="M0,180 L100,160 L200,120 L300,130 L400,80 L500,40" fill="none" stroke="#8A05BE" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+<path d="M0,180 L100,160 L200,120 L300,130 L400,80 L500,40 V200 H0 Z" fill="url(#chartGradient)" vector-effect="non-scaling-stroke"></path>
+</svg>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Jan</span>
+</div>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Fev</span>
+</div>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Mar</span>
+</div>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Abr</span>
+</div>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Mai</span>
+</div>
+<div class="z-10 flex flex-col items-center gap-xs">
+<div class="h-32 w-1 bg-surface-variant/30 rounded-full overflow-hidden"></div>
+<span class="text-legenda font-legenda text-on-surface-variant">Jun</span>
+</div>
+</div>
+</div>
+<!-- Achievements Section -->
+<div class="md:col-span-4 space-y-lg">
+<div class="bg-primary text-on-primary rounded-xl p-lg shadow-lg relative overflow-hidden group">
+<div class="absolute -right-4 -top-4 opacity-10 transform group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-[120px]">military_tech</span>
+</div>
+<div class="relative z-10">
+<h3 class="font-titulo-md text-titulo-md mb-sm">Conquistas</h3>
+<div class="space-y-md">
+<div class="flex items-center gap-md bg-white/10 p-sm rounded-lg">
+<span class="material-symbols-outlined text-tertiary-fixed">verified_user</span>
+<div>
+<p class="font-titulo-md text-sm">Foco Total</p>
+<p class="text-legenda opacity-80">3 meses sem atrasos</p>
+</div>
+</div>
+<div class="flex items-center gap-md bg-white/10 p-sm rounded-lg">
+<span class="material-symbols-outlined text-tertiary-fixed">celebration</span>
+<div>
+<p class="font-titulo-md text-sm">Primeira Dívida Quitada!</p>
+<p class="text-legenda opacity-80">Cartão Nubank liquidado</p>
+</div>
+</div>
+</div>
+<button class="mt-lg w-full py-sm bg-white text-primary font-botao text-botao rounded-lg hover:bg-surface-bright transition-colors active:scale-95">Ver medalhas</button>
+</div>
+</div>
+<div class="bg-secondary-container text-on-secondary-container rounded-xl p-lg">
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined">psychology</span>
+<h4 class="font-titulo-md text-sm">Dica do Especialista</h4>
+</div>
+<p class="font-corpo-sm">Você reduziu 15% a mais este mês do que a média. Continue assim para quitar tudo 4 meses antes!</p>
+</div>
+</div>
+<!-- Recent Payments List -->
+<div class="md:col-span-12 bg-surface-container-lowest border border-outline-variant/30 rounded-xl overflow-hidden shadow-sm">
+<div class="px-lg py-md border-b border-outline-variant/20 flex justify-between items-center">
+<h3 class="font-titulo-md text-titulo-md text-on-surface">Pagamentos Recentes</h3>
+<button class="text-primary font-botao text-sm hover:underline">Ver extrato completo</button>
+</div>
+<div class="divide-y divide-outline-variant/10">
+<!-- Item 1 -->
+<div class="px-lg py-md flex items-center justify-between hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined" data-weight="fill">check_circle</span>
+</div>
+<div>
+<p class="font-titulo-md text-base text-on-surface">Acordo Banco Itáu</p>
+<p class="text-corpo-sm text-on-surface-variant">Parcela 04/12 • Ontem, 14:30</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-titulo-md text-base text-on-surface">R$ 450,00</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-tertiary-container/20 text-on-tertiary-container text-legenda font-legenda">CONCLUÍDO</span>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="px-lg py-md flex items-center justify-between hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined" data-weight="fill">check_circle</span>
+</div>
+<div>
+<p class="font-titulo-md text-base text-on-surface">Cartão de Crédito - XP</p>
+<p class="text-corpo-sm text-on-surface-variant">Quitação única • 12 Jun, 09:15</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-titulo-md text-base text-on-surface">R$ 2.120,50</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-tertiary-container/20 text-on-tertiary-container text-legenda font-legenda">QUITADO</span>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="px-lg py-md flex items-center justify-between hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-md">
+<div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div>
+<p class="font-titulo-md text-base text-on-surface">Empréstimo Pessoal - Bradesco</p>
+<p class="text-corpo-sm text-on-surface-variant">Parcela 08/24 • 05 Jun, 10:00</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-titulo-md text-base text-on-surface">R$ 890,00</p>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant text-legenda font-legenda">PROCESSADO</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-3 pb-safe bg-white/90 backdrop-blur-lg shadow-[0_-2px_10px_rgba(0,0,0,0.05)] rounded-t-xl z-50">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-legenda text-legenda">Início</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-legenda text-legenda">Dívidas</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" data-weight="fill">insights</span>
+<span class="font-legenda text-legenda">Estratégia</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-legenda text-legenda">Perfil</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for chart tooltips or hover effects
+        const listItems = document.querySelectorAll('.group');
+        listItems.forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                const icon = item.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'scale(1.1)';
+            });
+            item.addEventListener('mouseleave', () => {
+                const icon = item.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.transform = 'scale(1)';
+            });
+        });
+
+        // Simulating chart animation on load
+        window.addEventListener('load', () => {
+            const chartPath = document.querySelector('.progress-line');
+            chartPath.style.strokeDashoffset = "0";
+        });
+    </script>
+</body></html>

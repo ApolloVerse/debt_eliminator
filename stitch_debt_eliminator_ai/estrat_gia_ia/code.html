@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Saldo Positivo - Estratégia de Eliminação com IA</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-bright": "#f7f9fc",
+                    "secondary-fixed": "#d6e3ff",
+                    "primary": "#670090",
+                    "surface-dim": "#d8dadd",
+                    "tertiary-fixed": "#3effbf",
+                    "on-surface-variant": "#4f4253",
+                    "primary-fixed-dim": "#eab2ff",
+                    "outline-variant": "#d3c1d5",
+                    "on-tertiary-fixed-variant": "#005139",
+                    "surface-tint": "#941cc7",
+                    "primary-fixed": "#f7d8ff",
+                    "on-tertiary-fixed": "#002115",
+                    "surface-container": "#eceef1",
+                    "background": "#f7f9fc",
+                    "error": "#ba1a1a",
+                    "on-primary-fixed": "#320047",
+                    "surface-container-low": "#f2f4f7",
+                    "on-secondary-fixed-variant": "#31476b",
+                    "on-tertiary-container": "#00e6a9",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-container": "#006246",
+                    "secondary-fixed-dim": "#b1c7f2",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#004832",
+                    "primary-container": "#8a05be",
+                    "surface-variant": "#e0e3e6",
+                    "inverse-primary": "#eab2ff",
+                    "on-secondary-container": "#445a7f",
+                    "inverse-on-surface": "#eff1f4",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-container-high": "#e6e8eb",
+                    "on-error": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "secondary": "#495f84",
+                    "surface": "#f7f9fc",
+                    "secondary-container": "#bcd2fe",
+                    "on-primary-fixed-variant": "#7400a0",
+                    "on-secondary": "#ffffff",
+                    "inverse-surface": "#2d3133",
+                    "tertiary-fixed-dim": "#00e1a5",
+                    "surface-container-highest": "#e0e3e6",
+                    "on-secondary-fixed": "#001b3d",
+                    "on-background": "#191c1e",
+                    "on-surface": "#191c1e",
+                    "on-primary-container": "#edb9ff",
+                    "outline": "#817284"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "20px",
+                    "xs": "4px",
+                    "sm": "8px",
+                    "lg": "24px",
+                    "xl": "32px",
+                    "md": "16px",
+                    "xxl": "48px",
+                    "gutter": "16px",
+                    "unidade": "4px",
+                    "margin-desktop": "40px"
+            },
+            "fontFamily": {
+                    "titulo-md": ["Outfit"],
+                    "titulo-xl": ["Outfit"],
+                    "corpo-sm": ["Inter"],
+                    "botao": ["Outfit"],
+                    "titulo-xl-mobile": ["Outfit"],
+                    "titulo-lg": ["Outfit"],
+                    "corpo-lg": ["Inter"],
+                    "corpo-md": ["Inter"],
+                    "legenda": ["Inter"]
+            },
+            "fontSize": {
+                    "titulo-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "titulo-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "corpo-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "botao": ["16px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "titulo-xl-mobile": ["28px", {"lineHeight": "34px", "fontWeight": "700"}],
+                    "titulo-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "corpo-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "corpo-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "legenda": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f7f9fc;
+            padding-bottom: 80px;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-corpo-md text-on-surface">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md shadow-sm flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white overflow-hidden">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a smiling person against a soft, blurred studio background. The lighting is warm and flattering, creating a friendly and approachable appearance. The composition is a clean, modern portrait suitable for a fintech application's user profile, maintaining a light-mode aesthetic with vibrant clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAymbHAzVXKrc7azXtGKrHswNpCPmF7VZ5KStiDrbgvfPy7t9uo5S_nBPFYaWh1s-6OXALe56azw5b3BaXlcEvIg4Rk1AORgK7HCwXjY5xtsxMVyEpYF_aMmB8fI1kzx5V_1XJnZFhAU9w1joRymwPWPp7ht0fmruUkXNjNMJG0yiHn12PpGArltPsw9T7Xn558ABDs5m2ixvSlYSUZ0WscHmt3vcUedbEjt6-axhB0dDxuiWK5OcmD0CBr9J4BXDS3nqcB5qY0xiU"/>
+</div>
+<h1 class="font-titulo-md text-titulo-md font-bold text-primary">Saldo Positivo</h1>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container transition-colors p-2 rounded-full">
+            notifications
+        </button>
+</header>
+<main class="pt-24 px-margin-mobile max-w-7xl mx-auto">
+<!-- Hero Strategy Section -->
+<section class="mb-xl">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md mb-lg">
+<div>
+<span class="text-primary font-titulo-md text-titulo-md block mb-xs">Estratégia</span>
+<h2 class="font-titulo-xl-mobile md:font-titulo-xl text-titulo-xl-mobile md:text-titulo-xl text-on-background">Caminho para a Liberdade</h2>
+</div>
+<div class="glass-card p-lg rounded-xl flex items-center gap-lg shadow-sm border-l-4 border-primary">
+<div>
+<p class="font-legenda text-legenda text-on-surface-variant uppercase tracking-widest">Liberdade Financeira em</p>
+<p class="font-titulo-md text-titulo-md text-primary">Março de 2026</p>
+</div>
+<span class="material-symbols-outlined text-primary text-4xl">calendar_today</span>
+</div>
+</div>
+<!-- Methodology Selection -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md mb-xl">
+<button class="relative group p-lg rounded-xl bg-white border-2 border-primary shadow-lg transition-all transform active:scale-95 text-left overflow-hidden" id="btn-snowball">
+<div class="flex justify-between items-start mb-md">
+<span class="material-symbols-outlined text-primary text-3xl">ac_unit</span>
+<div class="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center">
+<div class="w-3 h-3 bg-primary rounded-full"></div>
+</div>
+</div>
+<h3 class="font-titulo-md text-titulo-md text-primary mb-xs">Bola de Neve</h3>
+<p class="font-corpo-sm text-corpo-sm text-on-surface-variant">Pague a menor dívida primeiro. Ganhe motivação psicológica com vitórias rápidas.</p>
+</button>
+<button class="relative group p-lg rounded-xl bg-white border border-outline-variant shadow-sm hover:border-primary/50 transition-all transform active:scale-95 text-left overflow-hidden" id="btn-avalanche">
+<div class="flex justify-between items-start mb-md">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors text-3xl">landscape</span>
+<div class="w-6 h-6 rounded-full border-2 border-outline-variant"></div>
+</div>
+<h3 class="font-titulo-md text-titulo-md text-on-background mb-xs">Avalanche</h3>
+<p class="font-corpo-sm text-corpo-sm text-on-surface-variant">Pague a dívida com maior juros primeiro. Economize o máximo de dinheiro a longo prazo.</p>
+</button>
+</div>
+</section>
+<!-- IA Insights & Grid -->
+<div class="bento-grid mb-xxl">
+<!-- IA Card -->
+<div class="col-span-12 md:col-span-5 glass-card p-xl rounded-xl relative overflow-hidden flex flex-col justify-between h-full min-h-[320px]">
+<div class="absolute -top-12 -right-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-sm mb-md text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="font-botao text-botao">Otimização por IA</span>
+</div>
+<h3 class="font-titulo-lg text-titulo-lg text-on-background mb-md">Como a IA trabalha por você?</h3>
+<p class="font-corpo-md text-corpo-md text-on-surface-variant">
+                        Nossa inteligência analisa as taxas de juros flutuantes e prazos de carência para sugerir o momento exato de negociar. No modo atual, estamos priorizando sua <span class="text-primary font-bold">saúde emocional</span>.
+                    </p>
+</div>
+<div class="mt-lg flex items-center gap-md p-md bg-primary/5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-primary">tips_and_updates</span>
+<p class="font-corpo-sm text-corpo-sm text-on-primary-fixed-variant">IA sugere: Antecipar a parcela do Cartão Nubank economiza R$ 42,00 em juros este mês.</p>
+</div>
+</div>
+<!-- Priority List -->
+<div class="col-span-12 md:col-span-7 bg-white p-xl rounded-xl shadow-sm border border-outline-variant">
+<div class="flex justify-between items-center mb-lg">
+<h3 class="font-titulo-md text-titulo-md text-on-background">Ordem de Prioridade</h3>
+<span class="font-legenda text-legenda px-md py-xs bg-tertiary-fixed text-on-tertiary-fixed rounded-full">Gerado pela IA</span>
+</div>
+<div class="space-y-md">
+<!-- Item 1 (Target) -->
+<div class="flex items-center gap-md p-md bg-surface-bright border-2 border-primary rounded-xl relative">
+<div class="absolute -left-3 top-1/2 -translate-y-1/2 bg-primary text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</div>
+<div class="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">credit_card</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-titulo-md text-corpo-lg font-bold">Nubank Platinum</h4>
+<span class="text-primary font-bold">R$ 1.240,00</span>
+</div>
+<div class="flex items-center gap-xs mt-1">
+<span class="font-legenda text-legenda text-on-surface-variant">Juros: 14.5% a.m.</span>
+<span class="w-1 h-1 bg-outline-variant rounded-full"></span>
+<span class="font-legenda text-legenda text-primary font-semibold">Alvo Atual</span>
+</div>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center gap-md p-md bg-white border border-outline-variant rounded-xl opacity-80 hover:opacity-100 transition-opacity">
+<div class="w-12 h-12 bg-surface-container rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">directions_car</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-corpo-lg font-medium text-on-background">Financiamento Auto</h4>
+<span class="text-on-surface font-semibold">R$ 22.400,00</span>
+</div>
+<p class="font-legenda text-legenda text-on-surface-variant mt-1">Próximo na fila • 1.9% a.m.</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="flex items-center gap-md p-md bg-white border border-outline-variant rounded-xl opacity-60 hover:opacity-100 transition-opacity">
+<div class="w-12 h-12 bg-surface-container rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">school</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-corpo-lg font-medium text-on-background">Crédito Educativo</h4>
+<span class="text-on-surface font-semibold">R$ 8.900,00</span>
+</div>
+<p class="font-legenda text-legenda text-on-surface-variant mt-1">Longo prazo • 0.8% a.m.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Motivational Footer Section -->
+<section class="bg-primary-container p-xl rounded-2xl text-on-primary-container mb-xxl relative overflow-hidden shadow-2xl">
+<div class="absolute right-0 bottom-0 opacity-10">
+<span class="material-symbols-outlined text-[200px]" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+</div>
+<div class="max-w-2xl relative z-10">
+<h2 class="font-titulo-lg text-titulo-lg mb-md">"O sucesso financeiro não é sobre o quanto você ganha, mas sobre o quanto você domina."</h2>
+<p class="font-corpo-lg text-corpo-lg opacity-90 mb-lg">Você já reduziu seu endividamento em 12% nos últimos 3 meses. Continue seguindo o plano e em breve o seu dinheiro trabalhará para você, não contra você.</p>
+<button class="bg-white text-primary px-xl py-md rounded-xl font-botao text-botao flex items-center gap-sm hover:shadow-lg transition-shadow active:scale-95 duration-200">
+                    Ver progresso detalhado
+                    <span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-3 pb-safe bg-white/90 dark:bg-black/90 backdrop-blur-lg shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-50 rounded-t-xl">
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150">
+<span class="material-symbols-outlined">home</span>
+<span class="font-legenda text-legenda">Início</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-legenda text-legenda">Dívidas</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-4 py-1 active:scale-90 duration-150">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">insights</span>
+<span class="font-legenda text-legenda">Estratégia</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150">
+<span class="material-symbols-outlined">person</span>
+<span class="font-legenda text-legenda">Perfil</span>
+</button>
+</nav>
+<script>
+        // Simple Interaction for Methodology Selection
+        const btnSnowball = document.getElementById('btn-snowball');
+        const btnAvalanche = document.getElementById('btn-avalanche');
+
+        function toggleMethodology(selected, inactive) {
+            selected.classList.remove('border-outline-variant', 'shadow-sm');
+            selected.classList.add('border-primary', 'shadow-lg');
+            selected.querySelector('.material-symbols-outlined').classList.add('text-primary');
+            selected.querySelector('.material-symbols-outlined').classList.remove('text-on-surface-variant');
+            selected.querySelector('div > div').innerHTML = '<div class="w-3 h-3 bg-primary rounded-full"></div>';
+            selected.querySelector('h3').classList.add('text-primary');
+            selected.querySelector('h3').classList.remove('text-on-background');
+
+            inactive.classList.add('border-outline-variant', 'shadow-sm');
+            inactive.classList.remove('border-primary', 'shadow-lg');
+            inactive.querySelector('.material-symbols-outlined').classList.remove('text-primary');
+            inactive.querySelector('.material-symbols-outlined').classList.add('text-on-surface-variant');
+            inactive.querySelector('div > div').innerHTML = '';
+            inactive.querySelector('h3').classList.remove('text-primary');
+            inactive.querySelector('h3').classList.add('text-on-background');
+        }
+
+        btnSnowball.addEventListener('click', () => toggleMethodology(btnSnowball, btnAvalanche));
+        btnAvalanche.addEventListener('click', () => toggleMethodology(btnAvalanche, btnSnowball));
+    </script>
+</body></html>

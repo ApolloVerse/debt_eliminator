@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-condensed: "Barlow Condensed", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-sp-purple: #7F3DFF;
+  --color-sp-purple-hover: #6D28D9;
+  --color-sp-purple-light: #F4F0FF;
+  --color-sp-mint: #10B981;
+  --color-sp-mint-light: #D1FAE5;
+  --color-sp-bg: #F8FAFC;
+  --color-sp-border: #E2E8F0;
+  --color-sp-text-dark: #0F172A;
+  --color-sp-text-sec: #64748B;
+  --color-sp-text-subtle: #94A3B8;
+  --color-sp-red-bg: #FEE2E2;
+  --color-sp-red-text: #EF4444;
+  
+  /* Dark mode colors */
+  --color-sp-dark-bg: #0F172A;
+  --color-sp-dark-card: #1E293B;
+  --color-sp-dark-border: #334155;
+  --color-sp-dark-text: #F1F5F9;
+  --color-sp-dark-text-sec: #94A3B8;
+}
+
+@layer base {
+  body {
+    @apply bg-sp-bg text-sp-text-dark font-sans antialiased transition-colors duration-300;
+  }
+  
+  .dark body,
+  .dark {
+    @apply bg-sp-dark-bg text-sp-dark-text;
+  }
+}
+
+/* Dark mode utility classes */
+.dark .bg-white { @apply bg-sp-dark-card; }
+.dark .bg-sp-bg { @apply bg-sp-dark-bg; }
+.dark .bg-slate-50 { @apply bg-slate-800; }
+.dark .bg-slate-100 { @apply bg-slate-700; }
+.dark .border-sp-border { @apply border-sp-dark-border; }
+.dark .border { @apply border-sp-dark-border; }
+.dark .text-sp-text-dark { @apply text-sp-dark-text; }
+.dark .text-sp-text-sec { @apply text-sp-dark-text-sec; }
+.dark .text-sp-text-subtle { @apply text-slate-500; }
+.dark .shadow-sm { @apply shadow-slate-900/20; }
+.dark .shadow-md { @apply shadow-slate-900/30; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+::-webkit-scrollbar-thumb {
+  background: #E2E8F0;
+  border-radius: 4px;
+}
+
+/* Custom Markdown Styling for AI Plan */
+.custom-markdown h1, 
+.custom-markdown h2, 
+.custom-markdown h3 {
+  @apply font-display font-bold text-sp-purple mt-8 mb-4 border-b border-sp-border pb-2;
+}
+.custom-markdown h1 { @apply text-2xl; }
+.custom-markdown h2 { @apply text-xl; }
+.custom-markdown h3 { @apply text-lg; }
+
+.custom-markdown p {
+  @apply text-sm leading-relaxed mb-4 text-sp-text-sec font-normal;
+}
+
+.custom-markdown ul, .custom-markdown ol {
+  @apply mb-6 space-y-2 list-disc list-inside text-sp-text-sec text-sm;
+}
+
+.custom-markdown li {
+  @apply text-sm text-sp-text-sec font-normal;
+}
+
+.custom-markdown strong {
+  @apply text-sp-text-dark font-bold;
+}
+
+.custom-markdown blockquote {
+  @apply bg-sp-purple-light border-l-4 border-sp-purple p-4 text-sm text-sp-purple font-medium mb-6 rounded-r-lg;
+}
+
+/* Hide scrollbar but keep scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+}

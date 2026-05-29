@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Saldo Positivo - Dashboard</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9fc",
+                        "secondary-fixed": "#d6e3ff",
+                        "primary": "#670090",
+                        "surface-dim": "#d8dadd",
+                        "tertiary-fixed": "#3effbf",
+                        "on-surface-variant": "#4f4253",
+                        "primary-fixed-dim": "#eab2ff",
+                        "outline-variant": "#d3c1d5",
+                        "on-tertiary-fixed-variant": "#005139",
+                        "surface-tint": "#941cc7",
+                        "primary-fixed": "#f7d8ff",
+                        "on-tertiary-fixed": "#002115",
+                        "surface-container": "#eceef1",
+                        "background": "#f7f9fc",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#320047",
+                        "surface-container-low": "#f2f4f7",
+                        "on-secondary-fixed-variant": "#31476b",
+                        "on-tertiary-container": "#00e6a9",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#006246",
+                        "secondary-fixed-dim": "#b1c7f2",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#004832",
+                        "primary-container": "#8a05be",
+                        "surface-variant": "#e0e3e6",
+                        "inverse-primary": "#eab2ff",
+                        "on-secondary-container": "#445a7f",
+                        "inverse-on-surface": "#eff1f4",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#e6e8eb",
+                        "on-error": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "secondary": "#495f84",
+                        "surface": "#f7f9fc",
+                        "secondary-container": "#bcd2fe",
+                        "on-primary-fixed-variant": "#7400a0",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#2d3133",
+                        "tertiary-fixed-dim": "#00e1a5",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-secondary-fixed": "#001b3d",
+                        "on-background": "#191c1e",
+                        "on-surface": "#191c1e",
+                        "on-primary-container": "#edb9ff",
+                        "outline": "#817284"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "20px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "xxl": "48px",
+                        "gutter": "16px",
+                        "unidade": "4px",
+                        "margin-desktop": "40px"
+                    },
+                    "fontFamily": {
+                        "titulo-md": ["Outfit"],
+                        "titulo-xl": ["Outfit"],
+                        "corpo-sm": ["Inter"],
+                        "botao": ["Outfit"],
+                        "titulo-xl-mobile": ["Outfit"],
+                        "titulo-lg": ["Outfit"],
+                        "corpo-lg": ["Inter"],
+                        "corpo-md": ["Inter"],
+                        "legenda": ["Inter"]
+                    },
+                    "fontSize": {
+                        "titulo-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "titulo-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "corpo-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "botao": ["16px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "titulo-xl-mobile": ["28px", {"lineHeight": "34px", "fontWeight": "700"}],
+                        "titulo-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "corpo-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "corpo-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "legenda": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #f7f9fc; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e0e3e6; border-radius: 10px; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-corpo-md text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface-container-lowest flex justify-between items-center px-margin-mobile h-16 w-full bg-white/80 backdrop-blur-md shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden border-2 border-primary-fixed">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A professional and friendly headshot of a young adult with a warm smile, set against a clean, soft-focus office background. The lighting is bright and natural, reflecting a modern light-mode fintech aesthetic. The composition is centered and clean, utilizing a palette of soft whites and professional tones to convey trust and approachability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2gRG83_gOGekQ7SDc93WEHTmEnsTiqIzuUN-NqH7lN_LgMA36sup_mP2cgyUhA7Ec1JBDFvI2zlJ4PwZVxeMjPruIg94fyFhnqYRysXxtkexeRl9wCJOnD8djPPopHqMnpTAYRuGLHmK_O-ePxsiCzg8juO4wrI8MgO71ZgisCI12Ub50xcf9ggytcvDpJmmdQ3FzFccH14e3In9CZcxYYUO7MWz117XfumI5pvSi5gmvpTb_LNRcwGFidisAU9GJj29kfGlyEOI"/>
+</div>
+<span class="font-titulo-md text-titulo-md font-bold text-primary">Saldo Positivo</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="pt-24 pb-32 px-margin-mobile md:px-margin-desktop max-w-6xl mx-auto space-y-xl">
+<!-- Hero: Dívida Total -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<div class="md:col-span-2 bg-primary-container rounded-xl p-lg text-on-primary shadow-lg flex flex-col justify-between min-h-[220px] relative overflow-hidden group">
+<div class="relative z-10">
+<p class="font-legenda text-legenda uppercase tracking-widest opacity-80">Total em Aberto</p>
+<h2 class="font-titulo-xl-mobile md:font-titulo-xl text-titulo-xl-mobile md:text-titulo-xl mt-sm">R$ 14.280,50</h2>
+</div>
+<div class="relative z-10 mt-xl">
+<div class="flex justify-between items-end mb-xs">
+<span class="font-corpo-sm text-corpo-sm">Progresso de Quitação</span>
+<span class="font-titulo-md text-titulo-md">42%</span>
+</div>
+<div class="w-full bg-white/20 h-3 rounded-full overflow-hidden">
+<div class="bg-tertiary-fixed h-full w-[42%] rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(62,255,191,0.5)]"></div>
+</div>
+</div>
+<!-- Abstract background shape -->
+<div class="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all"></div>
+</div>
+<!-- Quick Actions -->
+<div class="grid grid-cols-2 md:grid-cols-1 gap-md">
+<button class="bg-surface-container-lowest border border-outline-variant p-md rounded-xl flex flex-col items-center justify-center gap-sm hover:bg-primary hover:text-white transition-all group active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-primary group-hover:text-white" style="font-variation-settings: 'opsz' 32;">add_circle</span>
+<span class="font-botao text-botao">Nova Dívida</span>
+</button>
+<button class="bg-surface-container-lowest border border-outline-variant p-md rounded-xl flex flex-col items-center justify-center gap-sm hover:bg-primary hover:text-white transition-all group active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-primary group-hover:text-white" style="font-variation-settings: 'opsz' 32;">map</span>
+<span class="font-botao text-botao">Ver Plano</span>
+</button>
+</div>
+</section>
+<!-- Insights Grid -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Cash Flow Chart Placeholder -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant">
+<div class="flex justify-between items-center mb-lg">
+<h3 class="font-titulo-md text-titulo-md text-on-surface">Fluxo de Caixa</h3>
+<div class="flex gap-sm">
+<div class="flex items-center gap-1">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-legenda">Saídas</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="w-3 h-3 rounded-full bg-tertiary-fixed-dim"></span>
+<span class="text-legenda">Entradas</span>
+</div>
+</div>
+</div>
+<div class="h-48 flex items-end justify-between gap-2 px-2">
+<!-- Simple CSS Bar Chart -->
+<div class="flex flex-col items-center flex-1 gap-1">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="bg-primary/20 w-1/2 h-[60%] rounded-t-sm"></div>
+<div class="bg-tertiary-fixed-dim/40 w-1/2 h-[80%] rounded-t-sm"></div>
+</div>
+<span class="text-[10px] text-outline">SEG</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-1">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="bg-primary/20 w-1/2 h-[45%] rounded-t-sm"></div>
+<div class="bg-tertiary-fixed-dim/40 w-1/2 h-[70%] rounded-t-sm"></div>
+</div>
+<span class="text-[10px] text-outline">TER</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-1">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="bg-primary w-1/2 h-[90%] rounded-t-sm"></div>
+<div class="bg-tertiary-fixed-dim w-1/2 h-[55%] rounded-t-sm"></div>
+</div>
+<span class="text-[10px] text-outline">QUA</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-1">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="bg-primary/20 w-1/2 h-[30%] rounded-t-sm"></div>
+<div class="bg-tertiary-fixed-dim/40 w-1/2 h-[65%] rounded-t-sm"></div>
+</div>
+<span class="text-[10px] text-outline">QUI</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-1">
+<div class="w-full flex gap-1 items-end h-full">
+<div class="bg-primary/20 w-1/2 h-[75%] rounded-t-sm"></div>
+<div class="bg-tertiary-fixed-dim/40 w-1/2 h-[40%] rounded-t-sm"></div>
+</div>
+<span class="text-[10px] text-outline">SEX</span>
+</div>
+</div>
+</div>
+<!-- Next Due Dates -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant flex flex-col">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-titulo-md text-titulo-md text-on-surface">Próximos Vencimentos</h3>
+<span class="text-primary font-botao cursor-pointer hover:underline">Ver todos</span>
+</div>
+<div class="space-y-md flex-1 overflow-y-auto custom-scrollbar pr-2">
+<!-- Bill Item -->
+<div class="flex items-center p-md bg-surface-container-low rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center mr-md">
+<span class="material-symbols-outlined text-error">calendar_today</span>
+</div>
+<div class="flex-1">
+<p class="font-corpo-md text-on-surface font-semibold">Cartão de Crédito</p>
+<p class="font-legenda text-on-surface-variant">Vence em 2 dias</p>
+</div>
+<div class="text-right">
+<p class="font-corpo-md text-on-surface font-bold">R$ 1.250,00</p>
+<span class="bg-error/10 text-error px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Urgente</span>
+</div>
+</div>
+<!-- Bill Item -->
+<div class="flex items-center p-md bg-surface-container-low rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center mr-md">
+<span class="material-symbols-outlined text-on-secondary-container">electric_bolt</span>
+</div>
+<div class="flex-1">
+<p class="font-corpo-md text-on-surface font-semibold">Conta de Luz</p>
+<p class="font-legenda text-on-surface-variant">Vence em 5 dias</p>
+</div>
+<div class="text-right">
+<p class="font-corpo-md text-on-surface font-bold">R$ 342,10</p>
+<span class="bg-secondary/10 text-secondary px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Pendente</span>
+</div>
+</div>
+<!-- Bill Item -->
+<div class="flex items-center p-md bg-surface-container-low rounded-xl border border-transparent hover:border-primary/20 transition-all cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-tertiary-container/20 flex items-center justify-center mr-md">
+<span class="material-symbols-outlined text-tertiary-container">directions_car</span>
+</div>
+<div class="flex-1">
+<p class="font-corpo-md text-on-surface font-semibold">Parcela Carro</p>
+<p class="font-legenda text-on-surface-variant">Vence em 12 dias</p>
+</div>
+<div class="text-right">
+<p class="font-corpo-md text-on-surface font-bold">R$ 890,00</p>
+<span class="bg-tertiary-container/10 text-tertiary-container px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">Agendado</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Strategy Suggestion Card -->
+<section class="bg-white rounded-xl border border-outline-variant overflow-hidden flex flex-col md:flex-row shadow-sm hover:shadow-md transition-shadow">
+<div class="md:w-1/3 h-48 md:h-auto overflow-hidden">
+<img alt="Estratégia Financeira" class="w-full h-full object-cover" data-alt="A clean, minimalist flat-lay of professional financial planning tools including a sleek smartphone showing a growth chart, a designer fountain pen, and a high-end notebook. The lighting is soft and airy, typical of a modern workspace. The scene uses a palette of bright whites, subtle greys, and vibrant purple accents, evoking a sense of organization, success, and strategic thinking." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMO8gD3BV8R7PpzqwhMPDPz8uSisS39Z9V-JMBh45cU7bL6WK60tNA3_uXnDuRg7odaMNT1Ztdnp-iuGqOG1zXMuDkcR_7QUiRDdty6_-PJuPBKkigPcd6mQs3-nk17vE1na0oTYOkHsuNz8gjwwd-07uwhIn4BFkjZJpVLDUIk4Gtb2QUoi-uJrPjzucoBfVcj_n0Hg1xmwgMgtxT8UAaCs0hw0ivs1jO15FjzLOi4h7Fsyb-fyy7_mlHGifo7zPG_diQK-fmeZ0"/>
+</div>
+<div class="p-lg flex-1 flex flex-col justify-center">
+<span class="bg-primary/10 text-primary font-bold text-[10px] px-2 py-1 rounded-md uppercase w-fit mb-sm">Dica de Hoje</span>
+<h3 class="font-titulo-md text-titulo-md mb-xs text-on-surface">Estratégia Bola de Neve</h3>
+<p class="font-corpo-sm text-on-surface-variant mb-md">Com base no seu perfil, pagar a dívida do "Cartão de Crédito" primeiro pode economizar R$ 450,00 em juros este mês.</p>
+<button class="bg-primary text-white font-botao px-md py-sm rounded-lg w-fit hover:bg-primary-container transition-colors active:scale-95 duration-150">
+                    Aplicar Estratégia
+                </button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-3 pb-safe bg-white/90 dark:bg-black/90 backdrop-blur-lg shadow-[0_-2px_10px_rgba(0,0,0,0.05)] rounded-t-xl z-50">
+<!-- Início (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-xl px-4 py-1 active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-legenda text-legenda">Início</span>
+</a>
+<!-- Dívidas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-legenda text-legenda">Dívidas</span>
+</a>
+<!-- Estratégia -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span class="font-legenda text-legenda">Estratégia</span>
+</a>
+<!-- Perfil -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 hover:opacity-80 transition-opacity active:scale-90 duration-150" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-legenda text-legenda">Perfil</span>
+</a>
+</nav>
+<!-- Floating Action Button - Only for Primary Action -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform z-40 md:hidden">
+<span class="material-symbols-outlined" style="font-size: 32px;">add</span>
+</button>
+<script>
+        // Simple micro-interaction for the progress bar on load
+        window.addEventListener('load', () => {
+            const bar = document.querySelector('.bg-tertiary-fixed');
+            bar.style.width = '0%';
+            setTimeout(() => {
+                bar.style.width = '42%';
+            }, 300);
+        });
+
+        // Toggle hover effect simulation for cards via JS if needed, 
+        // but tailwind hover: classes are already handling it nicely.
+    </script>
+</body></html>
