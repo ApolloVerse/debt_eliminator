@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "openId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "Debt item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "installmentAmount": { "type": "number" },
+        "type": { "type": "string", "enum": ["fixed", "variable"] },
+        "interestRate": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date" },
+        "totalInstallments": { "type": "integer" },
+        "paidInstallments": { "type": "integer" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "totalAmount", "remainingAmount"]
+    },
+    "Income": {
+      "title": "Income",
+      "description": "Income source",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "frequency": { "type": "string", "enum": ["monthly", "weekly", "biweekly", "annual", "sporadic"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "amount", "frequency"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Fixed expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string", "enum": ["housing", "food", "transport", "health", "education", "utilities", "entertainment", "other"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "amount", "category"]
+    },
+    "PaymentLog": {
+      "title": "PaymentLog",
+      "description": "Log of a debt payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "debtId": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "paymentDate": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "debtId", "amountPaid", "paymentDate"]
+    },
+    "AIPlan": {
+      "title": "AIPlan",
+      "description": "Personalized AI elimination plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "strategy": { "type": "string", "enum": ["snowball", "avalanche"] },
+        "planContent": { "type": "string" },
+        "monthlyIncome": { "type": "number" },
+        "monthlyExpenses": { "type": "number" },
+        "freeCash": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "strategy", "planContent"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/debts/{debtId}": { "schema": "Debt", "description": "User debts" },
+    "/incomes/{incomeId}": { "schema": "Income", "description": "User income sources" },
+    "/expenses/{expenseId}": { "schema": "Expense", "description": "User expenses" },
+    "/paymentLogs/{logId}": { "schema": "PaymentLog", "description": "History of payments" },
+    "/aiPlans/{planId}": { "schema": "AIPlan", "description": "AI generated plans" }
+  }
+}
