@@ -16,12 +16,16 @@ import {
   Sun,
   Target,
   Menu,
-  X
+  X,
+  Tag
 } from 'lucide-react';
 import { logout, supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { User } from '@supabase/supabase-js';
 import { useTheme } from '../lib/ThemeContext';
+
+const APP_VERSION = 'v1.1';
+const APP_BUILD_DATE = '29/10/2026';
 
 const navItems = [
   { label: 'Resumo', href: '/', icon: LayoutDashboard },
@@ -191,6 +195,14 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <LogOut className="w-4 h-4" />
               Sair da Conta
             </button>
+            {/* Version badge */}
+            <div className="mt-3 flex items-center justify-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sp-purple/8 border border-sp-purple/20 text-sp-purple text-[10px] font-bold tracking-wider select-none">
+                <Tag className="w-3 h-3" />
+                Saldo Positivo {APP_VERSION}
+              </span>
+              <span className="text-[9px] text-sp-text-subtle font-medium">{APP_BUILD_DATE}</span>
+            </div>
           </div>
         </aside>
 
@@ -283,6 +295,14 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 <LogOut className="w-4 h-4" />
                 Sair da Conta
               </button>
+              {/* Version badge mobile */}
+              <div className="mt-3 flex items-center justify-center gap-1.5">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sp-purple/8 border border-sp-purple/20 text-sp-purple text-[10px] font-bold tracking-wider select-none">
+                  <Tag className="w-3 h-3" />
+                  Saldo Positivo {APP_VERSION}
+                </span>
+                <span className="text-[9px] text-sp-text-subtle font-medium">{APP_BUILD_DATE}</span>
+              </div>
             </div>
           </div>
         </div>
