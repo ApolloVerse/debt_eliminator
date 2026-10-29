@@ -10,13 +10,19 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 // Check if credentials are placeholders or empty
 export const isMisconfigured = !supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder');
 
-// Check demo mode state in localStorage
+// Known broken/paused Supabase domains – always force demo mode for these
+const BROKEN_DOMAINS = ['qgwrqqfonlfjuuaiswds', 'placeholder'];
+const isKnownBroken = BROKEN_DOMAINS.some(d => supabaseUrl.includes(d));
+
+// Demo mode: default is TRUE unless the user has explicitly stored 'false' in localStorage
+// This ensures zero-config access always works without requiring env vars.
 export const isDemoMode = (): boolean => {
   if (typeof window === 'undefined') return true;
+  // Only disable demo mode when explicitly opted out AND credentials are valid
   const stored = localStorage.getItem('sp_demo_mode');
-  if (stored !== null) return stored === 'true';
-  // If variables are missing or point to unresolvable domain, default to demo mode
-  return isMisconfigured || supabaseUrl.includes('qgwrqqfonlfjuuaiswds');
+  if (stored === 'false' && !isMisconfigured && !isKnownBroken) return false;
+  // Default: demo mode is ON
+  return true;
 };
 
 export const setDemoMode = (enabled: boolean): void => {
@@ -79,7 +85,9 @@ export const supabase = {
     },
 
     signInWithOAuth: async (options: any) => {
-      if (isDemoMode()) {
+      // Always use demo if misconfigured – signInWithOAuth does a browser
+      // redirect so there's no way to catch network errors after the call.
+      if (isDemoMode() || isMisconfigured || isKnownBroken) {
         return signInAsDemo();
       }
 
@@ -126,24 +134,20 @@ export const signInAsDemo = async () => {
 };
 
 export const signInWithGoogle = async () => {
-  // If in demo mode or configured with broken domain, log in directly via demo mode
-  if (isDemoMode()) {
+  // Guard: NEVER redirect to broken/paused Supabase URLs.
+  // signInWithOAuth causes a browser redirect – there's no way to catch a
+  // DNS failure after the fact, so we block it here before it happens.
+  if (isDemoMode() || isMisconfigured || isKnownBroken) {
     return signInAsDemo();
   }
 
-  try {
-    const { error } = await realSupabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
-      console.warn('OAuth error, entering demo mode:', error);
-      return signInAsDemo();
-    }
-  } catch (err) {
-    console.warn('Supabase offline, entering demo mode:', err);
+  // Only reach here when Supabase is properly configured and not broken
+  const { error } = await realSupabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) {
+    console.warn('OAuth error, entering demo mode:', error);
     return signInAsDemo();
   }
 };
