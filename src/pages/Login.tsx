@@ -1,9 +1,13 @@
 import React from 'react';
-import { signInAsDemo, signInWithGoogle } from '../lib/supabase';
+import { signInAsDemo } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { Sparkles, ArrowRight, Play, ShieldCheck } from 'lucide-react';
+import { Sparkles, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
 
 export const Login = () => {
+  const handleEnter = async () => {
+    await signInAsDemo();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-tr from-slate-50 via-slate-100 to-indigo-50/50 flex flex-col items-center justify-center p-6 antialiased">
       <motion.div
@@ -12,14 +16,14 @@ export const Login = () => {
         transition={{ duration: 0.6 }}
         className="max-w-md w-full text-center space-y-8"
       >
-        {/* Upper Brand Icon & Logo */}
+        {/* Brand */}
         <div className="space-y-4">
           <div className="flex justify-center">
             <div className="w-16 h-16 bg-sp-purple text-white rounded-3xl flex items-center justify-center shadow-lg shadow-sp-purple/20">
               <Sparkles className="w-8 h-8 fill-current" />
             </div>
           </div>
-          
+
           <div>
             <h1 className="text-4xl font-extrabold text-indigo-950 tracking-tight leading-none">
               Saldo Positivo
@@ -30,13 +34,13 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* Action card */}
+        {/* Card */}
         <div className="bg-white border border-sp-border rounded-4xl p-8 text-left shadow-xl shadow-slate-200/50 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 pointer-events-none" />
-          
+
           <div className="flex items-center gap-2 mb-2">
             <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[11px] font-black rounded-full uppercase tracking-wider">
-              Pronto para Uso
+              ✓ Pronto para Uso
             </span>
           </div>
 
@@ -44,24 +48,26 @@ export const Login = () => {
             Acesse seu Painel
           </h2>
           <p className="text-sp-text-sec mb-6 text-sm leading-relaxed font-medium">
-            Planeje, gerencie e quite suas dívidas com estratégias matemáticas avançadas (Bola de Neve e Avalanche) e inteligência artificial.
+            Planeje, gerencie e quite suas dívidas com estratégias Bola de Neve e Avalanche e inteligência artificial.
           </p>
 
           <div className="space-y-3">
-            {/* Primary One-Click Instant Access */}
-            <button 
+            {/* ===== BOTÃO PRINCIPAL - ACESSO IMEDIATO ===== */}
+            <button
+              id="btn-entrar-app"
               className="w-full flex items-center justify-center gap-2.5 text-base font-extrabold text-white bg-sp-purple hover:bg-sp-purple-hover h-14 rounded-2xl shadow-lg shadow-sp-purple/25 active:scale-[0.98] transition-all cursor-pointer select-none"
-              onClick={signInAsDemo}
+              onClick={handleEnter}
             >
-              <Play className="w-5 h-5 fill-current" />
+              <Zap className="w-5 h-5 fill-current" />
               Entrar no Aplicativo
               <ArrowRight className="w-5 h-5 stroke-[2.5]" />
             </button>
 
-            {/* Optional Google Login */}
-            <button 
+            {/* ===== BOTÃO SECUNDÁRIO - GOOGLE (também usa demo) ===== */}
+            <button
+              id="btn-google"
               className="w-full flex items-center justify-center gap-2.5 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 h-12 rounded-2xl active:scale-[0.98] transition-all cursor-pointer select-none border border-slate-200"
-              onClick={signInWithGoogle}
+              onClick={handleEnter}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -69,7 +75,7 @@ export const Login = () => {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
               </svg>
-              Conectar com o Google
+              Acesse com o Google
             </button>
           </div>
 
