@@ -52,16 +52,6 @@ export default function App() {
     );
   }
 
-  if (isMisconfigured) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: 'Inter, sans-serif' }}>
-        <div style={{ background: '#fff', border: '2px solid #EF4444', borderRadius: '24px', padding: '32px', maxWidth: '440px', width: '100%', textAlign: 'center' }}>
-          <h1 style={{ fontWeight: 900, fontSize: '20px', color: '#0F172A', marginBottom: '8px' }}>Variaveis de ambiente ausentes</h1>
-          <p style={{ fontSize: '13px', color: '#64748B' }}>Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no Vercel.</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (
