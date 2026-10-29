@@ -29,212 +29,192 @@ const formatMonthDate = (day: number) => {
 
 const INITIAL_DEBTS = [
   {
-    id: 'debt-1',
+    id: 'debt-div',
     userId: DEMO_USER_ID,
-    name: 'Cartão de Crédito Nubank',
-    totalAmount: 4800,
-    remainingAmount: 3200,
-    installmentAmount: 450,
-    type: 'variable',
-    interestRate: 12.5,
+    name: 'Empréstimo DIV',
+    totalAmount: 8507.05,
+    remainingAmount: 1320.52,
+    installmentAmount: 654.66,
+    type: 'fixed',
+    interestRate: 2.5,
     dueDate: '10',
     totalInstallments: 12,
-    paidInstallments: 4,
+    paidInstallments: 10,
     isActive: true,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'debt-2',
+    id: 'debt-luz',
     userId: DEMO_USER_ID,
-    name: 'Empréstimo Pessoal Caixa',
-    totalAmount: 12000,
-    remainingAmount: 8500,
-    installmentAmount: 620,
-    type: 'fixed',
-    interestRate: 4.8,
+    name: 'Conta de Luz',
+    totalAmount: 2626.33,
+    remainingAmount: 520.00,
+    installmentAmount: 260.00,
+    type: 'variable',
+    interestRate: 1.0,
     dueDate: '15',
-    totalInstallments: 24,
-    paidInstallments: 7,
+    totalInstallments: 12,
+    paidInstallments: 10,
     isActive: true,
-    createdAt: new Date(Date.now() - 120 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'debt-3',
+    id: 'debt-agua',
     userId: DEMO_USER_ID,
-    name: 'Financiamento Veículo',
-    totalAmount: 35000,
-    remainingAmount: 22000,
-    installmentAmount: 890,
+    name: 'Conta de Água',
+    totalAmount: 697.33,
+    remainingAmount: 100.00,
+    installmentAmount: 50.00,
+    type: 'variable',
+    interestRate: 1.0,
+    dueDate: '15',
+    totalInstallments: 11,
+    paidInstallments: 9,
+    isActive: true,
+    createdAt: new Date('2026-02-01').toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'debt-internet',
+    userId: DEMO_USER_ID,
+    name: 'Internet Vivo',
+    totalAmount: 1128.82,
+    remainingAmount: 200.00,
+    installmentAmount: 100.00,
     type: 'fixed',
-    interestRate: 1.9,
-    dueDate: '25',
-    totalInstallments: 48,
-    paidInstallments: 18,
+    interestRate: 1.0,
+    dueDate: '20',
+    totalInstallments: 12,
+    paidInstallments: 10,
     isActive: true,
-    createdAt: new Date(Date.now() - 240 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'debt-4',
+    id: 'debt-celular',
     userId: DEMO_USER_ID,
-    name: 'Cheque Especial Santander',
-    totalAmount: 1500,
-    remainingAmount: 1200,
-    installmentAmount: 200,
-    type: 'overdraft',
-    interestRate: 14.2,
-    dueDate: '05',
-    totalInstallments: 6,
+    name: 'Celular Mensal Linc',
+    totalAmount: 92.97,
+    remainingAmount: 61.98,
+    installmentAmount: 30.99,
+    type: 'fixed',
+    interestRate: 1.0,
+    dueDate: '20',
+    totalInstallments: 3,
     paidInstallments: 1,
     isActive: true,
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+    createdAt: new Date('2026-10-01').toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
 const INITIAL_INCOMES = [
   {
-    id: 'inc-1',
+    id: 'inc-salario',
     userId: DEMO_USER_ID,
-    name: 'Salário Principal CLT',
-    amount: 6500,
+    name: 'Salário Mensal (PAG)',
+    amount: 2636.04,
     frequency: 'monthly',
     recurrenceDay: 5,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'inc-2',
+    id: 'inc-vale',
     userId: DEMO_USER_ID,
-    name: 'Projetos Freelance',
-    amount: 1800,
+    name: 'Adiantamento Vale (VALE)',
+    amount: 1250.00,
     frequency: 'monthly',
     recurrenceDay: 20,
     isActive: true,
-    createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
 const INITIAL_EXPENSES = [
   {
-    id: 'exp-1',
+    id: 'exp-bebidas',
     userId: DEMO_USER_ID,
-    name: 'Aluguel + Condomínio',
-    amount: 1950,
-    category: 'housing',
-    recurrenceDay: 10,
-    isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'exp-2',
-    userId: DEMO_USER_ID,
-    name: 'Supermercado Básico',
-    amount: 1200,
+    name: 'Bebidas (Novembro)',
+    amount: 1600.00,
     category: 'food',
-    recurrenceDay: 5,
+    recurrenceDay: 1,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-11-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'exp-3',
+    id: 'exp-luz-previsao',
     userId: DEMO_USER_ID,
-    name: 'Energia Elétrica e Água',
-    amount: 320,
+    name: 'Conta de Luz',
+    amount: 260.00,
     category: 'utilities',
     recurrenceDay: 15,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'exp-4',
+    id: 'exp-agua-previsao',
     userId: DEMO_USER_ID,
-    name: 'Internet Fibra e Celular',
-    amount: 180,
+    name: 'Conta de Água',
+    amount: 50.00,
     category: 'utilities',
-    recurrenceDay: 12,
+    recurrenceDay: 15,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'exp-5',
+    id: 'exp-internet-previsao',
     userId: DEMO_USER_ID,
-    name: 'Plano de Saúde',
-    amount: 450,
-    category: 'health',
-    recurrenceDay: 8,
+    name: 'Internet Vivo',
+    amount: 100.00,
+    category: 'utilities',
+    recurrenceDay: 20,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
-    id: 'exp-6',
+    id: 'exp-celular-previsao',
     userId: DEMO_USER_ID,
-    name: 'Combustível / Transporte',
-    amount: 400,
-    category: 'transport',
-    recurrenceDay: 1,
+    name: 'Celular Mensal Linc',
+    amount: 30.99,
+    category: 'utilities',
+    recurrenceDay: 20,
     isActive: true,
-    createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
+    createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
 const INITIAL_DAILY = [
-  { id: 'daily-1', userId: DEMO_USER_ID, description: 'Almoço Restaurante', amount: 48.50, category: 'alimentacao', date: formatMonthDate(2), createdAt: new Date().toISOString() },
-  { id: 'daily-2', userId: DEMO_USER_ID, description: 'Abastecimento Posto', amount: 120.00, category: 'transporte', date: formatMonthDate(4), createdAt: new Date().toISOString() },
-  { id: 'daily-3', userId: DEMO_USER_ID, description: 'Farmácia Medicamentos', amount: 65.30, category: 'saude', date: formatMonthDate(6), createdAt: new Date().toISOString() },
-  { id: 'daily-4', userId: DEMO_USER_ID, description: 'Cinema e Pipoca', amount: 82.00, category: 'lazer', date: formatMonthDate(8), createdAt: new Date().toISOString() },
-  { id: 'daily-5', userId: DEMO_USER_ID, description: 'Padaria Café da Manhã', amount: 24.50, category: 'alimentacao', date: formatMonthDate(11), createdAt: new Date().toISOString() },
-  { id: 'daily-6', userId: DEMO_USER_ID, description: 'Uber Reunião', amount: 34.90, category: 'transporte', date: formatMonthDate(14), createdAt: new Date().toISOString() },
-  { id: 'daily-7', userId: DEMO_USER_ID, description: 'Compras Mercado Rápido', amount: 145.20, category: 'compras', date: formatMonthDate(17), createdAt: new Date().toISOString() },
-  { id: 'daily-8', userId: DEMO_USER_ID, description: 'Jantar Delivery', amount: 78.00, category: 'alimentacao', date: formatMonthDate(20), createdAt: new Date().toISOString() },
+  { id: 'daily-1', userId: DEMO_USER_ID, description: 'Supermercado e Padaria', amount: 85.00, category: 'alimentacao', date: formatMonthDate(2), createdAt: new Date().toISOString() },
+  { id: 'daily-2', userId: DEMO_USER_ID, description: 'Transporte e Combustível', amount: 50.00, category: 'transporte', date: formatMonthDate(5), createdAt: new Date().toISOString() },
+  { id: 'daily-3', userId: DEMO_USER_ID, description: 'Farmácia', amount: 35.00, category: 'saude', date: formatMonthDate(10), createdAt: new Date().toISOString() }
 ];
 
 const INITIAL_BUDGETS = [
-  { id: 'b-1', userId: DEMO_USER_ID, category: 'alimentacao', monthlyLimit: 1500, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'b-2', userId: DEMO_USER_ID, category: 'transporte', monthlyLimit: 600, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'b-3', userId: DEMO_USER_ID, category: 'lazer', monthlyLimit: 400, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'b-4', userId: DEMO_USER_ID, category: 'compras', monthlyLimit: 500, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'b-5', userId: DEMO_USER_ID, category: 'saude', monthlyLimit: 500, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'b-6', userId: DEMO_USER_ID, category: 'outros', monthlyLimit: 300, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'b-1', userId: DEMO_USER_ID, category: 'utilities', monthlyLimit: 500, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'b-2', userId: DEMO_USER_ID, category: 'food', monthlyLimit: 2000, month: currentMonth + 1, year: currentYear, isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
 ];
 
 const INITIAL_GOALS = [
   {
     id: 'goal-1',
     userId: DEMO_USER_ID,
-    name: 'Reserva de Emergência (6 meses)',
-    description: 'Fundo para cobrir imprevistos com segurança',
-    targetAmount: 20000,
-    currentAmount: 6400,
+    name: 'Quitar Contas em Aberto e Ficar no Verde',
+    description: 'Eliminar os saldos restantes de 2026',
+    targetAmount: 2202.50,
+    currentAmount: 11418.01,
     priority: 'high',
     category: 'emergency',
-    deadline: `${currentYear}-12-31`,
-    isCompleted: false,
-    completedAt: null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'goal-2',
-    userId: DEMO_USER_ID,
-    name: 'Viagem de Férias',
-    description: 'Férias em família no final do ano',
-    targetAmount: 5000,
-    currentAmount: 2100,
-    priority: 'medium',
-    category: 'travel',
-    deadline: `${currentYear + 1}-01-20`,
+    deadline: `2026-12-31`,
     isCompleted: false,
     completedAt: null,
     isActive: true,
@@ -244,36 +224,55 @@ const INITIAL_GOALS = [
 ];
 
 const INITIAL_PAYMENTS = [
-  {
-    id: 'pay-1',
-    userId: DEMO_USER_ID,
-    debtId: 'debt-1',
-    debtName: 'Cartão de Crédito Nubank',
-    amountPaid: 450,
-    paymentDate: new Date(Date.now() - 25 * 86400000).toISOString(),
-    note: 'Parcela 4/12 paga em dia',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'pay-2',
-    userId: DEMO_USER_ID,
-    debtId: 'debt-2',
-    debtName: 'Empréstimo Pessoal Caixa',
-    amountPaid: 620,
-    paymentDate: new Date(Date.now() - 15 * 86400000).toISOString(),
-    note: 'Amortização mensal',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'pay-3',
-    userId: DEMO_USER_ID,
-    debtId: 'debt-4',
-    debtName: 'Cheque Especial Santander',
-    amountPaid: 300,
-    paymentDate: new Date(Date.now() - 5 * 86400000).toISOString(),
-    note: 'Amortização extraordinária para reduzir juros altos',
-    createdAt: new Date().toISOString()
-  }
+  // DIV Pagas (Janeiro a Outubro de 2026 - Verde)
+  { id: 'pay-div-1', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 668.93, paymentDate: '2026-01-10T12:00:00Z', note: 'Parcela Jan/2026 paga', createdAt: '2026-01-10T12:00:00Z' },
+  { id: 'pay-div-2', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 668.61, paymentDate: '2026-02-10T12:00:00Z', note: 'Parcela Fev/2026 paga', createdAt: '2026-02-10T12:00:00Z' },
+  { id: 'pay-div-3', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 693.16, paymentDate: '2026-03-10T12:00:00Z', note: 'Parcela Mar/2026 paga', createdAt: '2026-03-10T12:00:00Z' },
+  { id: 'pay-div-4', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 761.58, paymentDate: '2026-04-10T12:00:00Z', note: 'Parcela Abr/2026 paga', createdAt: '2026-04-10T12:00:00Z' },
+  { id: 'pay-div-5', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 785.00, paymentDate: '2026-05-10T12:00:00Z', note: 'Parcela Mai/2026 paga', createdAt: '2026-05-10T12:00:00Z' },
+  { id: 'pay-div-6', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 785.21, paymentDate: '2026-06-10T12:00:00Z', note: 'Parcela Jun/2026 paga', createdAt: '2026-06-10T12:00:00Z' },
+  { id: 'pay-div-7', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 792.42, paymentDate: '2026-07-10T12:00:00Z', note: 'Parcela Jul/2026 paga', createdAt: '2026-07-10T12:00:00Z' },
+  { id: 'pay-div-8', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 682.29, paymentDate: '2026-08-10T12:00:00Z', note: 'Parcela Ago/2026 paga', createdAt: '2026-08-10T12:00:00Z' },
+  { id: 'pay-div-9', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 682.59, paymentDate: '2026-09-10T12:00:00Z', note: 'Parcela Set/2026 paga', createdAt: '2026-09-10T12:00:00Z' },
+  { id: 'pay-div-10', userId: DEMO_USER_ID, debtId: 'debt-div', debtName: 'Empréstimo DIV', amountPaid: 666.74, paymentDate: '2026-10-10T12:00:00Z', note: 'Parcela Out/2026 paga', createdAt: '2026-10-10T12:00:00Z' },
+
+  // Luz Pagas (Janeiro a Outubro de 2026 - Verde)
+  { id: 'pay-luz-1', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 149.75, paymentDate: '2026-01-15T12:00:00Z', note: 'Luz Jan paga', createdAt: '2026-01-15T12:00:00Z' },
+  { id: 'pay-luz-2', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 144.43, paymentDate: '2026-02-15T12:00:00Z', note: 'Luz Fev paga', createdAt: '2026-02-15T12:00:00Z' },
+  { id: 'pay-luz-3', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 167.97, paymentDate: '2026-03-15T12:00:00Z', note: 'Luz Mar paga', createdAt: '2026-03-15T12:00:00Z' },
+  { id: 'pay-luz-4', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 140.13, paymentDate: '2026-04-15T12:00:00Z', note: 'Luz Abr paga', createdAt: '2026-04-15T12:00:00Z' },
+  { id: 'pay-luz-5', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 273.63, paymentDate: '2026-05-15T12:00:00Z', note: 'Luz Mai paga', createdAt: '2026-05-15T12:00:00Z' },
+  { id: 'pay-luz-6', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 207.58, paymentDate: '2026-06-15T12:00:00Z', note: 'Luz Jun paga', createdAt: '2026-06-15T12:00:00Z' },
+  { id: 'pay-luz-7', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 259.76, paymentDate: '2026-07-15T12:00:00Z', note: 'Luz Jul paga', createdAt: '2026-07-15T12:00:00Z' },
+  { id: 'pay-luz-8', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 256.54, paymentDate: '2026-08-15T12:00:00Z', note: 'Luz Ago paga', createdAt: '2026-08-15T12:00:00Z' },
+  { id: 'pay-luz-9', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 258.64, paymentDate: '2026-09-15T12:00:00Z', note: 'Luz Set paga', createdAt: '2026-09-15T12:00:00Z' },
+  { id: 'pay-luz-10', userId: DEMO_USER_ID, debtId: 'debt-luz', debtName: 'Conta de Luz', amountPaid: 247.90, paymentDate: '2026-10-15T12:00:00Z', note: 'Luz Out paga', createdAt: '2026-10-15T12:00:00Z' },
+
+  // Água Pagas (Fevereiro a Outubro de 2026 - Verde)
+  { id: 'pay-agua-1', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 182.33, paymentDate: '2026-02-15T12:00:00Z', note: 'Água Fev paga', createdAt: '2026-02-15T12:00:00Z' },
+  { id: 'pay-agua-2', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 91.33, paymentDate: '2026-03-15T12:00:00Z', note: 'Água Mar paga', createdAt: '2026-03-15T12:00:00Z' },
+  { id: 'pay-agua-3', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 109.01, paymentDate: '2026-04-15T12:00:00Z', note: 'Água Abr paga', createdAt: '2026-04-15T12:00:00Z' },
+  { id: 'pay-agua-4', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 24.60, paymentDate: '2026-05-15T12:00:00Z', note: 'Água Mai paga', createdAt: '2026-05-15T12:00:00Z' },
+  { id: 'pay-agua-5', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 25.00, paymentDate: '2026-06-15T12:00:00Z', note: 'Água Jun paga', createdAt: '2026-06-15T12:00:00Z' },
+  { id: 'pay-agua-6', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 37.94, paymentDate: '2026-07-15T12:00:00Z', note: 'Água Jul paga', createdAt: '2026-07-15T12:00:00Z' },
+  { id: 'pay-agua-7', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 49.20, paymentDate: '2026-08-15T12:00:00Z', note: 'Água Ago paga', createdAt: '2026-08-15T12:00:00Z' },
+  { id: 'pay-agua-8', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 44.20, paymentDate: '2026-09-15T12:00:00Z', note: 'Água Set paga', createdAt: '2026-09-15T12:00:00Z' },
+  { id: 'pay-agua-9', userId: DEMO_USER_ID, debtId: 'debt-agua', debtName: 'Conta de Água', amountPaid: 33.72, paymentDate: '2026-10-15T12:00:00Z', note: 'Água Out paga', createdAt: '2026-10-15T12:00:00Z' },
+
+  // Internet Vivo Pagas (Janeiro a Outubro de 2026 - Verde)
+  { id: 'pay-net-1', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 122.90, paymentDate: '2026-01-20T12:00:00Z', note: 'Internet Jan paga', createdAt: '2026-01-20T12:00:00Z' },
+  { id: 'pay-net-2', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 122.90, paymentDate: '2026-02-20T12:00:00Z', note: 'Internet Fev paga', createdAt: '2026-02-20T12:00:00Z' },
+  { id: 'pay-net-3', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 120.63, paymentDate: '2026-03-20T12:00:00Z', note: 'Internet Mar paga', createdAt: '2026-03-20T12:00:00Z' },
+  { id: 'pay-net-4', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 122.90, paymentDate: '2026-04-20T12:00:00Z', note: 'Internet Abr paga', createdAt: '2026-04-20T12:00:00Z' },
+  { id: 'pay-net-5', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 122.90, paymentDate: '2026-05-20T12:00:00Z', note: 'Internet Mai paga', createdAt: '2026-05-20T12:00:00Z' },
+  { id: 'pay-net-6', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 19.36, paymentDate: '2026-06-20T12:00:00Z', note: 'Internet Jun paga', createdAt: '2026-06-20T12:00:00Z' },
+  { id: 'pay-net-7', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 100.00, paymentDate: '2026-07-20T12:00:00Z', note: 'Internet Jul paga', createdAt: '2026-07-20T12:00:00Z' },
+  { id: 'pay-net-8', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 100.00, paymentDate: '2026-08-20T12:00:00Z', note: 'Internet Ago paga', createdAt: '2026-08-20T12:00:00Z' },
+  { id: 'pay-net-9', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 100.00, paymentDate: '2026-09-20T12:00:00Z', note: 'Internet Set paga', createdAt: '2026-09-20T12:00:00Z' },
+  { id: 'pay-net-10', userId: DEMO_USER_ID, debtId: 'debt-internet', debtName: 'Internet Vivo', amountPaid: 97.23, paymentDate: '2026-10-20T12:00:00Z', note: 'Internet Out paga', createdAt: '2026-10-20T12:00:00Z' },
+
+  // Celular Mensal Linc Paga (Outubro de 2026 - Verde)
+  { id: 'pay-cel-1', userId: DEMO_USER_ID, debtId: 'debt-celular', debtName: 'Celular Mensal Linc', amountPaid: 30.99, paymentDate: '2026-10-20T12:00:00Z', note: 'Celular Out paga', createdAt: '2026-10-20T12:00:00Z' }
 ];
 
 const INITIAL_PLANS = [
@@ -319,6 +318,12 @@ class MockStorage {
   }
 
   getItems(table: string): any[] {
+    const CURRENT_VERSION = 'v3_spreadsheet_data';
+    if (typeof window !== 'undefined' && localStorage.getItem('sp_demo_version') !== CURRENT_VERSION) {
+      this.resetAll();
+      localStorage.setItem('sp_demo_version', CURRENT_VERSION);
+    }
+
     const raw = localStorage.getItem(this.getStorageKey(table));
     if (raw) {
       try {
