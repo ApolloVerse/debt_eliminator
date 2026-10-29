@@ -10,18 +10,15 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 // Check if credentials are placeholders or empty
 export const isMisconfigured = !supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder');
 
-// Known broken/paused Supabase domains – always force demo mode for these
-const BROKEN_DOMAINS = ['qgwrqqfonlfjuuaiswds', 'placeholder'];
+// Known broken/paused Supabase domains – only mock placeholders
+const BROKEN_DOMAINS = ['placeholder'];
 const isKnownBroken = BROKEN_DOMAINS.some(d => supabaseUrl.includes(d));
 
-// Demo mode: default is TRUE unless the user has explicitly stored 'false' in localStorage
-// This ensures zero-config access always works without requiring env vars.
+// Demo mode: default is TRUE unless the user has explicitly logged in with real Supabase
 export const isDemoMode = (): boolean => {
   if (typeof window === 'undefined') return true;
-  // Only disable demo mode when explicitly opted out AND credentials are valid
   const stored = localStorage.getItem('sp_demo_mode');
   if (stored === 'false' && !isMisconfigured && !isKnownBroken) return false;
-  // Default: demo mode is ON
   return true;
 };
 
@@ -134,14 +131,15 @@ export const signInAsDemo = async () => {
 };
 
 export const signInWithGoogle = async () => {
-  // Guard: NEVER redirect to broken/paused Supabase URLs.
-  // signInWithOAuth causes a browser redirect – there's no way to catch a
-  // DNS failure after the fact, so we block it here before it happens.
-  if (isDemoMode() || isMisconfigured || isKnownBroken) {
+  if (isMisconfigured || isKnownBroken) {
+    console.warn('Supabase not configured, falling back to demo mode');
     return signInAsDemo();
   }
 
-  // Only reach here when Supabase is properly configured and not broken
+  // Switch demo mode off for real Supabase authentication
+  setDemoMode(false);
+  localStorage.setItem('sp_demo_logged_in', 'false');
+
   const { error } = await realSupabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.origin },
