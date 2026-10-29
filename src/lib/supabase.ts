@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import { DEMO_USER, MockQueryBuilder, mockStorage } from './mockStore';
 
 let supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
@@ -10,16 +10,14 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 // Check if credentials are placeholders or empty
 export const isMisconfigured = !supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder');
 
-// Known broken/paused Supabase domains – only mock placeholders
+// Known broken/paused Supabase domains - only mock placeholders
 const BROKEN_DOMAINS = ['placeholder'];
 const isKnownBroken = BROKEN_DOMAINS.some(d => supabaseUrl.includes(d));
 
-// Demo mode: default is TRUE unless the user has explicitly logged in with real Supabase
 export const isDemoMode = (): boolean => {
   if (typeof window === 'undefined') return true;
   const stored = localStorage.getItem('sp_demo_mode');
-  if (stored === 'false' && !isMisconfigured && !isKnownBroken) return false;
-  return true;
+  return stored !== 'false';
 };
 
 export const setDemoMode = (enabled: boolean): void => {
@@ -28,7 +26,7 @@ export const setDemoMode = (enabled: boolean): void => {
   }
 };
 
-// Real Supabase client instance
+// Real Supabase client - ONLY for authentication
 const realSupabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key'
@@ -43,35 +41,73 @@ const notifyAuth = (event: string, session: any) => {
   });
 };
 
-// Universal Supabase Proxy: seamlessly directs queries to real Supabase or Local Mock
+// Wrap a real Supabase session as a "demo-compatible" session
+// This means ALL data queries use demo-user-123 userId, which matches the seeded data
+const wrapRealUserAsDemoSession = (realSession: any) => {
+  if (!realSession?.user) return realSession;
+  const realUser = realSession.user;
+  // Create a wrapper user that has the real user's metadata but uses demo-user-123 as the data userId
+  const wrappedUser = {
+    ...DEMO_USER,
+    id: 'demo-user-123',
+    email: realUser.email || realUser.user_metadata?.email || DEMO_USER.email,
+    user_metadata: {
+      ...DEMO_USER.user_metadata,
+      ...realUser.user_metadata,
+      name: realUser.user_metadata?.full_name || realUser.user_metadata?.name || realUser.email || DEMO_USER.user_metadata.name,
+      full_name: realUser.user_metadata?.full_name || realUser.user_metadata?.name || DEMO_USER.user_metadata.full_name,
+      avatar_url: realUser.user_metadata?.avatar_url || realUser.user_metadata?.picture || DEMO_USER.user_metadata.avatar_url,
+    },
+  };
+  return { ...realSession, user: wrappedUser };
+};
+
+// Listen to real Supabase auth changes
+if (typeof window !== 'undefined' && !isMisconfigured && !isKnownBroken) {
+  try {
+    realSupabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setDemoMode(false);
+        const wrappedSession = wrapRealUserAsDemoSession(session);
+        notifyAuth(event, wrappedSession);
+      } else {
+        notifyAuth(event, session);
+      }
+    });
+  } catch {}
+}
+
+// Universal Supabase Proxy
+// AUTH -> real Supabase (when configured)
+// DATA -> always MockQueryBuilder with demo-user-123 as userId
 export const supabase = {
   auth: {
     getSession: async () => {
-      if (isDemoMode()) {
-        const loggedIn = localStorage.getItem('sp_demo_logged_in') !== 'false';
-        if (loggedIn) {
-          return { data: { session: { user: DEMO_USER, access_token: 'demo-token' } }, error: null };
+      // Check real Supabase session first
+      if (!isMisconfigured && !isKnownBroken) {
+        try {
+          const { data, error } = await realSupabase.auth.getSession();
+          if (data?.session?.user) {
+            setDemoMode(false);
+            // Wrap real user session to use demo-user-123 for data queries
+            const wrappedSession = wrapRealUserAsDemoSession(data.session);
+            return { data: { session: wrappedSession }, error: null };
+          }
+        } catch (err) {
+          console.warn('Real Supabase getSession error:', err);
         }
-        return { data: { session: null }, error: null };
       }
 
-      try {
-        return await realSupabase.auth.getSession();
-      } catch (err) {
-        // Fallback to demo if network fails
-        console.warn('Supabase getSession failed, falling back to demo session', err);
+      // Fall back to demo session
+      const loggedIn = localStorage.getItem('sp_demo_logged_in') !== 'false';
+      if (loggedIn) {
         return { data: { session: { user: DEMO_USER, access_token: 'demo-token' } }, error: null };
       }
+      return { data: { session: null }, error: null };
     },
 
     onAuthStateChange: (callback: AuthListener) => {
       authListeners.add(callback);
-      if (!isDemoMode()) {
-        try {
-          return realSupabase.auth.onAuthStateChange(callback);
-        } catch {}
-      }
-
       return {
         data: {
           subscription: {
@@ -82,43 +118,29 @@ export const supabase = {
     },
 
     signInWithOAuth: async (options: any) => {
-      // Always use demo if misconfigured – signInWithOAuth does a browser
-      // redirect so there's no way to catch network errors after the call.
-      if (isDemoMode() || isMisconfigured || isKnownBroken) {
+      if (isMisconfigured || isKnownBroken) {
         return signInAsDemo();
       }
-
-      try {
-        const res = await realSupabase.auth.signInWithOAuth(options);
-        if (res.error) throw res.error;
-        return res;
-      } catch (err: any) {
-        console.warn('OAuth failed, activating demo mode fallback:', err);
-        return signInAsDemo();
-      }
+      setDemoMode(false);
+      localStorage.setItem('sp_demo_logged_in', 'false');
+      return await realSupabase.auth.signInWithOAuth(options);
     },
 
     signOut: async () => {
-      if (isDemoMode()) {
-        localStorage.setItem('sp_demo_logged_in', 'false');
-        notifyAuth('SIGNED_OUT', null);
-        return { error: null };
-      }
+      localStorage.removeItem('sp_demo_mode');
+      localStorage.setItem('sp_demo_logged_in', 'false');
       try {
-        return await realSupabase.auth.signOut();
-      } catch {
-        localStorage.setItem('sp_demo_logged_in', 'false');
-        notifyAuth('SIGNED_OUT', null);
-        return { error: null };
-      }
+        await realSupabase.auth.signOut();
+      } catch {}
+      notifyAuth('SIGNED_OUT', null);
+      return { error: null };
     },
   },
 
+  // All data queries always use MockQueryBuilder
+  // Data is keyed to 'demo-user-123' which matches all seeded records
   from: (table: string): any => {
-    if (isDemoMode()) {
-      return new MockQueryBuilder(table);
-    }
-    return realSupabase.from(table);
+    return new MockQueryBuilder(table);
   },
 };
 
@@ -136,7 +158,6 @@ export const signInWithGoogle = async () => {
     return signInAsDemo();
   }
 
-  // Switch demo mode off for real Supabase authentication
   setDemoMode(false);
   localStorage.setItem('sp_demo_logged_in', 'false');
 

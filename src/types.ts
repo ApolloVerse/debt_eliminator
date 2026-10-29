@@ -1,9 +1,21 @@
-export type DebtType = 'fixed' | 'variable' | 'overdraft';
+export type DebtType = 'fixed' | 'variable' | 'overdraft' | 'monthly';
+export type DebtCategory = 'credit_card' | 'loan' | 'overdraft' | 'monthly_bill' | 'other' | string;
+export type PaymentStatus = 'paid' | 'pending';
 export type IncomeFrequency = 'monthly' | 'weekly' | 'biweekly' | 'annual' | 'sporadic';
-export type ExpenseCategory = 'housing' | 'food' | 'transport' | 'health' | 'education' | 'utilities' | 'entertainment' | 'other';
+export type ExpenseCategory = 'housing' | 'food' | 'transport' | 'health' | 'education' | 'utilities' | 'entertainment' | 'other' | string;
 export type AIStrategy = 'snowball' | 'avalanche';
-export type DailyExpenseCategory = 'alimentacao' | 'transporte' | 'saude' | 'lazer' | 'compras' | 'servicos' | 'outros' | 'educacao' | 'moradia';
+export type DailyExpenseCategory = 'alimentacao' | 'transporte' | 'saude' | 'lazer' | 'compras' | 'servicos' | 'outros' | 'educacao' | 'moradia' | string;
 export type BudgetCategory = DailyExpenseCategory;
+
+export interface CustomCategory {
+  id: string;
+  userId: string;
+  name: string;
+  scope: 'expenses' | 'daily' | 'debts' | 'incomes';
+  color?: string;
+  icon?: string;
+  createdAt: string;
+}
 
 export interface User {
   id: string;
@@ -20,12 +32,15 @@ export interface Debt {
   totalAmount: number;
   remainingAmount: number;
   installmentAmount: number;
-  type: DebtType;
+  type: DebtType | string;
   interestRate: number;
   dueDate: string;
   totalInstallments: number;
   paidInstallments: number;
   isActive: boolean;
+  isPaid?: boolean;
+  paymentDate?: string;
+  category?: DebtCategory;
   createdAt: string;
   updatedAt?: string;
 }
@@ -36,6 +51,10 @@ export interface Income {
   name: string;
   amount: number;
   frequency: IncomeFrequency;
+  type?: 'fixed' | 'variable';
+  category?: string;
+  expectedDate?: string;
+  isReceived?: boolean;
   recurrenceDate?: string;
   recurrenceDay?: number;
   isActive: boolean;
@@ -49,6 +68,10 @@ export interface Expense {
   name: string;
   amount: number;
   category: ExpenseCategory;
+  type?: 'fixed' | 'variable';
+  dueDate?: string;
+  isPaid?: boolean;
+  paymentDate?: string;
   recurrenceDate?: string;
   recurrenceDay?: number;
   isActive: boolean;
@@ -86,6 +109,8 @@ export interface DailyExpense {
   amount: number;
   category: DailyExpenseCategory;
   date: string;
+  isScheduled?: boolean;
+  type?: 'fixed' | 'variable';
   createdAt: string;
 }
 

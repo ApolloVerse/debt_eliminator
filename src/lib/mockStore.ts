@@ -35,11 +35,14 @@ const INITIAL_DEBTS = [
     totalAmount: 8507.05,
     remainingAmount: 1320.52,
     installmentAmount: 654.66,
-    type: 'fixed',
+    type: 'variable',
+    category: 'loan',
     interestRate: 2.5,
-    dueDate: '10',
+    dueDate: '2026-10-10',
     totalInstallments: 12,
     paidInstallments: 10,
+    isPaid: false,
+    paymentDate: null,
     isActive: true,
     createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
@@ -49,13 +52,16 @@ const INITIAL_DEBTS = [
     userId: DEMO_USER_ID,
     name: 'Conta de Luz',
     totalAmount: 2626.33,
-    remainingAmount: 520.00,
+    remainingAmount: 260.00,
     installmentAmount: 260.00,
-    type: 'variable',
+    type: 'monthly',
+    category: 'monthly_bill',
     interestRate: 1.0,
-    dueDate: '15',
+    dueDate: '2026-11-15',
     totalInstallments: 12,
     paidInstallments: 10,
+    isPaid: false,
+    paymentDate: null,
     isActive: true,
     createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
@@ -65,13 +71,16 @@ const INITIAL_DEBTS = [
     userId: DEMO_USER_ID,
     name: 'Conta de Água',
     totalAmount: 697.33,
-    remainingAmount: 100.00,
+    remainingAmount: 50.00,
     installmentAmount: 50.00,
-    type: 'variable',
+    type: 'monthly',
+    category: 'monthly_bill',
     interestRate: 1.0,
-    dueDate: '15',
+    dueDate: '2026-11-15',
     totalInstallments: 11,
     paidInstallments: 9,
+    isPaid: false,
+    paymentDate: null,
     isActive: true,
     createdAt: new Date('2026-02-01').toISOString(),
     updatedAt: new Date().toISOString()
@@ -81,13 +90,16 @@ const INITIAL_DEBTS = [
     userId: DEMO_USER_ID,
     name: 'Internet Vivo',
     totalAmount: 1128.82,
-    remainingAmount: 200.00,
+    remainingAmount: 100.00,
     installmentAmount: 100.00,
-    type: 'fixed',
+    type: 'monthly',
+    category: 'monthly_bill',
     interestRate: 1.0,
-    dueDate: '20',
+    dueDate: '2026-11-20',
     totalInstallments: 12,
     paidInstallments: 10,
+    isPaid: false,
+    paymentDate: null,
     isActive: true,
     createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date().toISOString()
@@ -99,11 +111,14 @@ const INITIAL_DEBTS = [
     totalAmount: 92.97,
     remainingAmount: 61.98,
     installmentAmount: 30.99,
-    type: 'fixed',
+    type: 'monthly',
+    category: 'monthly_bill',
     interestRate: 1.0,
-    dueDate: '20',
+    dueDate: '2026-11-20',
     totalInstallments: 3,
     paidInstallments: 1,
+    isPaid: false,
+    paymentDate: null,
     isActive: true,
     createdAt: new Date('2026-10-01').toISOString(),
     updatedAt: new Date().toISOString()
@@ -318,10 +333,14 @@ class MockStorage {
   }
 
   getItems(table: string): any[] {
-    const CURRENT_VERSION = 'v3_spreadsheet_data';
-    if (typeof window !== 'undefined' && localStorage.getItem('sp_demo_version') !== CURRENT_VERSION) {
-      this.resetAll();
-      localStorage.setItem('sp_demo_version', CURRENT_VERSION);
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sp_demo_version');
+      const CANONICAL = 'v6_demo_canonical';
+      // Reset if version mismatch (forces fresh seed on version bump)
+      if (!stored || stored !== CANONICAL) {
+        this.resetAll();
+        localStorage.setItem('sp_demo_version', CANONICAL);
+      }
     }
 
     const raw = localStorage.getItem(this.getStorageKey(table));
@@ -343,6 +362,7 @@ class MockStorage {
       case 'financial_goals': initial = INITIAL_GOALS; break;
       case 'payment_logs': initial = INITIAL_PAYMENTS; break;
       case 'ai_plans': initial = INITIAL_PLANS; break;
+      case 'custom_categories': initial = []; break;
       default: initial = [];
     }
 
@@ -355,8 +375,24 @@ class MockStorage {
   }
 
   resetAll(): void {
-    const tables = ['debts', 'incomes', 'expenses', 'daily_expenses', 'budgets', 'financial_goals', 'payment_logs', 'ai_plans'];
+    const tables = ['debts', 'incomes', 'expenses', 'daily_expenses', 'budgets', 'financial_goals', 'payment_logs', 'ai_plans', 'custom_categories'];
     tables.forEach(t => localStorage.removeItem(this.getStorageKey(t)));
+    localStorage.removeItem('sp_demo_version');
+  }
+
+  /**
+   * Ensures clean demo data is seeded with the canonical demo-user-123 userId.
+   * Called when needed to reset to canonical seeded state.
+   */
+  seedForUser(_userId?: string): void {
+    if (typeof window === 'undefined') return;
+    const CANONICAL = 'v6_demo_canonical';
+    // If already seeded with canonical data, skip
+    if (localStorage.getItem('sp_demo_version') === CANONICAL) return;
+    // Reset to canonical demo-user-123 data (clear any old user-specific data)
+    this.resetAll();
+    localStorage.setItem('sp_demo_version', CANONICAL);
+    console.log('[MockStore] Canonical demo data seeded (userId: demo-user-123)');
   }
 }
 
