@@ -95,6 +95,9 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <span className="text-lg sm:text-xl font-extrabold tracking-tight bg-gradient-to-r from-sp-purple to-indigo-600 bg-clip-text text-transparent">
               Saldo Positivo
             </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-sp-purple/10 text-sp-purple border border-sp-purple/30 select-none">
+              v1.1
+            </span>
             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Demo Ativa
@@ -307,10 +310,31 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
 
-        {/* MAIN CONTENT */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto w-full">
-          {children}
-        </main>
+        {/* MAIN CONTENT & BOTTOM FOOTER */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-6xl mx-auto w-full">
+            {children}
+          </main>
+
+          {/* RODAPÉ DA PÁGINA (PARTE DE BAIXO) COM VERSÃO */}
+          <footer className="mt-auto py-6 px-4 sm:px-8 border-t border-sp-border dark:border-sp-dark-border bg-white dark:bg-sp-dark-card transition-colors">
+            <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+              <div className="flex items-center gap-2 text-xs text-sp-text-subtle">
+                <span className="font-extrabold text-sp-text-dark dark:text-sp-dark-text">Saldo Positivo</span>
+                <span>•</span>
+                <span>Elimine suas dívidas &amp; Liberdade Financeira</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sp-purple/15 border border-sp-purple/40 text-sp-purple font-black text-xs shadow-sm">
+                  <Tag className="w-3.5 h-3.5" />
+                  Versão {APP_VERSION}
+                </span>
+                <span className="text-[11px] text-sp-text-subtle font-semibold">Atualização {APP_BUILD_DATE}</span>
+              </div>
+            </div>
+          </footer>
+        </div>
       </div>
 
     </div>
