@@ -495,9 +495,9 @@ export const Dashboard = () => {
       {/* FLOATING ACTION PLUS BUTTON */}
       <button 
         onClick={() => setLocation('/debts?add=true')}
-        className="fixed bottom-20 right-6 md:bottom-8 md:right-8 w-14 h-14 bg-sp-purple text-white rounded-full flex items-center justify-center shadow-xl hover:bg-sp-purple-hover hover:scale-105 active:scale-95 transition-all z-40 cursor-pointer"
+        className="fixed bottom-20 right-4 md:bottom-8 md:right-8 w-11 h-11 md:w-14 md:h-14 bg-sp-purple text-white rounded-full flex items-center justify-center shadow-xl hover:bg-sp-purple-hover hover:scale-105 active:scale-95 transition-all z-30 cursor-pointer"
       >
-        <Plus className="w-7 h-7 stroke-[3]" />
+        <Plus className="w-5 h-5 md:w-7 md:h-7 stroke-[3]" />
       </button>
 
     </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'saldo-positivo-v1';
+const CACHE_NAME = 'saldo-positivo-v2';
 const urlsToCache = [
   '/',
   '/index.html',

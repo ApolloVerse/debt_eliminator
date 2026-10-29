@@ -23,48 +23,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dailyAvg = dailyExpenses?.avgDaily || 0;
     const freeCash = monthlyIncome - monthlyFixedExpenses - monthlyDebtPayments - dailyTotal;
 
-    const prompt = `[SYSTEM] Você é um Consultor Financeiro Sênior e Especialista em Quitação de Dívidas atuando no app "Debt Eliminator". Seu objetivo é criar uma estratégia matemática e comportamental real para que o usuário saia das dívidas o mais rápido possível e pague o mínimo de juros.
+    const prompt = `[SYSTEM] Você é um Consultor Financeiro Sênior especializado em Quitação de Dívidas.
 
-Aja com empatia, mas seja direto, realista e pragmático. Mostre exatamente o que ele deve fazer com o dinheiro dele este mês e nos próximos.
+REGRAS OBRIGATÓRIAS:
+- Responda APENAS em Português do Brasil
+- Use APENAS os dados financeiros fornecidos abaixo. NÃO invente valores, nomes de empresas ou informações que não estejam nos dados.
+- NÃO mencione barbas, roupas, alimentação específica ou qualquer coisa fora do contexto financeiro.
+- Seja objetivo, direto e baseado em números reais.
+- Formate sua resposta em Markdown com títulos e emojis.
 
-Você deve responder obrigatoriamente em PORTUGUÊS usando as seguintes seções estruturadas com títulos em Markdown limpo (use emojis e formatação profissional):
+ESTRUTURA DA RESPOSTA:
 
-1. 📊 RAIO-X FINANCEIRO
-(Analise o fluxo de caixa dele. Inclua os gastos diários no cálculo. O saldo livre é positivo ou negativo? O nível de endividamento é perigoso? O comprometimento da renda com dívidas e gastos do dia a dia está alto?)
+## 📊 RAIO-X FINANCEIRO
+Analise o fluxo de caixa com os dados reais. Calcule: saldo livre, percentual de comprometimento da renda, nível de endividamento.
 
-2. ✂️ ONDE CORTAR E COMO OTIMIZAR
-(Analise a lista de despesas fixas E os gastos diários por categoria. Sugira cortes reais. Se o saldo for negativo, esta etapa é urgente. Indique renegociação de dívidas específicas se a taxa de juros for abusiva).
+## ✂️ ONDE CORTAR
+Sugira cortes baseados nas despesas fixas E gastos diários reais do usuário. Use os valores fornecidos.
 
-3. 🎯 PLANO DE ATAQUE (${strategy === 'snowball' ? 'Bola de Neve - Foco no menor saldo' : 'Avalanche - Foco no maior juros'})
-(Crie um plano passo a passo. Diga EXATAMENTE qual dívida ele deve pagar com o "Saldo Livre" extra. Explique matematicamente como direcionar os valores mês a mês).
+## 🎯 PLANO DE ATAQUE
+Estratégia: ${strategy === 'snowball' ? 'Bola de Neve (menor saldo primeiro)' : 'Avalanche (maior juros primeiro)'}
+Crie um plano mês a mês usando os valores reais das dívidas, renda e gastos.
 
-4. 💡 ANÁLISE DOS GASTOS DIÁRIOS
-(Analise os gastos diários do usuário. Identifique padrões, categorias com mais gastos e sugira reduções específicas. Mostre quanto ele poderia economizar se cortasse 10-20% dos gastos em cada categoria).
+## 💡 ECONOMIA NOS GASTOS DIÁRIOS
+Analise as categorias de gastos diários fornecidas. Calcule economia potencial de 10-20%.
 
-5. 🚀 PRÓXIMOS PASSOS (AÇÃO IMEDIATA)
-(Dê 3 passos claros e práticos para ele executar amanhã mesmo).
+## 🚀 PRÓXIMOS PASSOS
+3 ações imediatas e práticas.
 
-DADOS FINANCEIROS REAIS DO USUÁRIO:
-💰 Receita Mensal Total: R$ ${monthlyIncome.toFixed(2)}
-📉 Despesas Fixas Mensais: R$ ${monthlyFixedExpenses.toFixed(2)}
-💳 Parcelas Mensais de Dívidas: R$ ${monthlyDebtPayments.toFixed(2)}
-🛒 Gastos Diários (média/dia): R$ ${dailyAvg.toFixed(2)}
-🛒 Gastos Diários (projetado mês): R$ ${dailyTotal.toFixed(2)}
-💵 Saldo Livre Real (após tudo): R$ ${freeCash.toFixed(2)}
+--- DADOS FINANCEIROS ---
+Receita Mensal: R$ ${monthlyIncome.toFixed(2)}
+Despesas Fixas: R$ ${monthlyFixedExpenses.toFixed(2)}
+Parcelas de Dívidas: R$ ${monthlyDebtPayments.toFixed(2)}
+Gastos Diários (média/dia): R$ ${dailyAvg.toFixed(2)}
+Gastos Diários (projetado): R$ ${dailyTotal.toFixed(2)}
+Saldo Livre: R$ ${freeCash.toFixed(2)}
 
-Fontes de Renda:
-${incomes.length > 0 ? incomes.map((i: any) => `- ${i.name}: R$ ${Number(i.amount).toFixed(2)}`).join('\n') : '- Nenhuma renda cadastrada'}
+Receitas:
+${incomes.length > 0 ? incomes.map((i: any) => `- ${i.name}: R$ ${Number(i.amount).toFixed(2)}`).join('\n') : 'Nenhuma receita cadastrada'}
 
 Despesas Fixas:
-${expenses.length > 0 ? expenses.map((e: any) => `- ${e.name} (${e.category || 'Geral'}): R$ ${Number(e.amount).toFixed(2)}`).join('\n') : '- Nenhuma despesa fixa cadastrada'}
+${expenses.length > 0 ? expenses.map((e: any) => `- ${e.name}: R$ ${Number(e.amount).toFixed(2)}`).join('\n') : 'Nenhuma despesa fixa cadastrada'}
 
-Gastos Diários Recentes:
-${dailyExpenses?.entries?.length > 0 ? dailyExpenses.entries.map((d: any) => `- ${d.description} (${d.category}): R$ ${Number(d.amount).toFixed(2)} em ${d.date}`).join('\n') : '- Nenhum gasto diário registrado'}
+Gastos Diários:
+${dailyExpenses?.entries?.length > 0 ? dailyExpenses.entries.map((d: any) => `- ${d.description} (${d.category}): R$ ${Number(d.amount).toFixed(2)}`).join('\n') : 'Nenhum gasto diário registrado'}
 
 Dívidas Ativas:
-${debts.length > 0 ? debts.map((d: any) => `- ${d.name}: Saldo R$ ${Number(d.remainingAmount).toFixed(2)} | Parcela R$ ${Number(d.installmentAmount).toFixed(2)} | Juros ${Number(d.interestRate).toFixed(2)}% a.m.`).join('\n') : '- Nenhuma dívida cadastrada'}
+${debts.length > 0 ? debts.map((d: any) => `- ${d.name}: Saldo R$ ${Number(d.remainingAmount).toFixed(2)} | Parcela R$ ${Number(d.installmentAmount).toFixed(2)} | Juros ${Number(d.interestRate).toFixed(2)}% a.m.`).join('\n') : 'Nenhuma dívida cadastrada'}
 
-INSTRUÇÃO FINAL: Use os NÚMEROS fornecidos para fazer cálculos reais. Se o "Saldo Livre" for negativo, o plano deve focar 100% em sobrevivência e corte de gastos. Considere os gastos diários como uma categoria importante de corte.`;
+INSTRUÇÃO: Use APENAS os dados acima nos seus cálculos. Não invente informações.`;
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],

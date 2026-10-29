@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { PaymentLog } from '../types';
-import { Title, BrutalCard, BrutalButton } from '../components/BrutalUI';
+import { Title } from '../components/BrutalUI';
 import { formatCurrency, cn } from '../lib/utils';
 import { 
   Award, 
   Sparkles, 
   CheckCircle, 
   HelpCircle,
-  Clock,
-  Check,
-  ChevronRight,
-  TrendingDown,
-  ChevronLeft
+  Check
 } from 'lucide-react';
 import { 
   ResponsiveContainer,
@@ -23,12 +19,11 @@ import {
   CartesianGrid,
   Tooltip
 } from 'recharts';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 import { toast } from 'sonner';
 
 export const History = () => {
-  const [, setLocation] = useLocation();
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<PaymentLog[]>([]);
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -42,7 +37,7 @@ export const History = () => {
         .eq('userId', user.id)
         .order('paymentDate', { ascending: false });
         
-      if (data) setLogs(data);
+      if (data) setLogs(data as PaymentLog[]);
     };
 
     fetchLogs();
@@ -50,10 +45,26 @@ export const History = () => {
 
   const totalPaidAllTime = logs.reduce((acc, log) => acc + (log.amountPaid || 0), 0);
 
-  // Evolution chart data mimicking Image 2 curve (going down over months)
-  const reductionData = logs.length > 0 ? [
-    { name: 'Atual', Dívida: totalPaidAllTime }
-  ] : [];
+  // Group payments by month for chart
+  const getMonthName = (date: Date) => {
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return months[date.getMonth()];
+  };
+
+  const reductionData = (() => {
+    if (logs.length === 0) return [];
+    
+    const monthlyTotals: Record<string, number> = {};
+    logs.forEach(log => {
+      const date = new Date(log.paymentDate);
+      const key = `${getMonthName(date)} ${date.getFullYear()}`;
+      monthlyTotals[key] = (monthlyTotals[key] || 0) + log.amountPaid;
+    });
+
+    return Object.entries(monthlyTotals)
+      .map(([name, total]) => ({ name, Dívida: total }))
+      .slice(-6);
+  })();
 
 
 
@@ -76,7 +87,13 @@ export const History = () => {
     : [];
 
   const handleMedalClick = () => {
-    toast.success('🎉 Sensacional! Você possui 3 Medalhas Ativas nesta temporada: Foco Total, Exterminador de Juros, e Operador Responsável.');
+    const medalCount = logs.length > 0 ? Math.min(3, Math.ceil(logs.length / 2)) : 0;
+    const medals = [];
+    if (logs.length >= 1) medals.push('Primeiro Pagamento');
+    if (logs.length >= 3) medals.push('Foco Total');
+    if (totalPaidAllTime > 1000) medals.push('Exterminador de Juros');
+    if (medals.length === 0) medals.push('Comece registrando pagamentos');
+    toast(`Suas medalhas: ${medals.join(', ')}`);
   };
 
   return (
@@ -167,8 +184,14 @@ export const History = () => {
                 <Check className="w-5 h-5 text-sp-mint stroke-[3.5]" />
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Foco Total</h4>
-                <p className="text-xs text-white/70">3 meses sem atrasos nos pagamentos</p>
+                <h4 className="font-bold text-sm text-white">
+                  {logs.length > 0 ? 'Primeiro Pagamento' : 'Comece sua jornada'}
+                </h4>
+                <p className="text-xs text-white/70">
+                  {logs.length > 0 
+                    ? `${logs.length} pagamento${logs.length > 1 ? 's' : ''} registrado${logs.length > 1 ? 's' : ''}`
+                    : 'Registre seu primeiro pagamento'}
+                </p>
               </div>
             </div>
 
@@ -178,8 +201,14 @@ export const History = () => {
                 <Sparkles className="w-5 h-5 text-yellow-300" />
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Primeira Dívida Quitada!</h4>
-                <p className="text-xs text-white/70">Cartão Nubank liquidado inteiramente</p>
+                <h4 className="font-bold text-sm text-white">
+                  {totalPaidAllTime > 0 ? 'Total Pago' : 'Aguardando pagamentos'}
+                </h4>
+                <p className="text-xs text-white/70">
+                  {totalPaidAllTime > 0 
+                    ? `Você já pagou ${formatCurrency(totalPaidAllTime)} em dívidas`
+                    : 'Seus pagamentos aparecerão aqui'}
+                </p>
               </div>
             </div>
           </div>
@@ -201,7 +230,11 @@ export const History = () => {
         <div>
           <h4 className="text-sm font-extrabold text-[#1E3A8A]">Dica do Especialista</h4>
           <p className="text-xs text-[#2563EB]/90 mt-1 leading-relaxed font-bold">
-            Você reduziu 15% a mais este mês do que a média. Continue assim para quitar tudo 4 meses antes!
+            {logs.length > 3 
+              ? `Você já realizou ${logs.length} pagamentos. Continue consistente para quitar suas dívidas mais rápido!`
+              : logs.length > 0 
+              ? `Continue registrando seus pagamentos. Cada amortização conta para sua liberdade financeira!`
+              : 'Registre seus pagamentos para receber dicas personalizadas.'}
           </p>
         </div>
       </div>

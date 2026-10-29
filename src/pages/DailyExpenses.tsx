@@ -16,6 +16,8 @@ const categoryIcons: Record<DailyExpenseCategory, any> = {
   compras: Package,
   servicos: Wrench,
   outros: MoreHorizontal,
+  educacao: Tv,
+  moradia: Wrench,
 };
 
 const categoryNames: Record<DailyExpenseCategory, string> = {
@@ -26,6 +28,8 @@ const categoryNames: Record<DailyExpenseCategory, string> = {
   compras: 'Compras',
   servicos: 'Serviços',
   outros: 'Outros',
+  educacao: 'Educação',
+  moradia: 'Moradia',
 };
 
 const categoryColors: Record<DailyExpenseCategory, string> = {
@@ -36,6 +40,8 @@ const categoryColors: Record<DailyExpenseCategory, string> = {
   compras: 'bg-blue-50 text-blue-600',
   servicos: 'bg-indigo-50 text-indigo-600',
   outros: 'bg-slate-100 text-slate-600',
+  educacao: 'bg-cyan-50 text-cyan-600',
+  moradia: 'bg-orange-50 text-orange-600',
 };
 
 export const DailyExpenses = () => {
