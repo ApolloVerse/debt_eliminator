@@ -1,20 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Debt, Income, Expense, DailyExpense, AIPlan as AIPlanType, AIStrategy } from '../types';
+import { generateEliminationPlan, getFinancialSnapshot, type DebtEliminationPlan, type FinancialSnapshot } from '../lib/aiEngine';
 import { Title, BrutalButton } from '../components/BrutalUI';
 import ReactMarkdown from 'react-markdown';
 import { 
   Sparkles, 
-  Calendar,
   Zap,
   Flame,
   Award,
   CheckCircle,
-  Clock,
   TrendingDown,
-  ArrowRight,
   Target,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  BarChart3,
+  Calendar,
+  ArrowRight,
+  DollarSign,
+  Shield,
+  AlertTriangle,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Heart,
+  CircleDollarSign,
+  Gauge,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, cn } from '../lib/utils';
@@ -24,173 +35,62 @@ export const AIPlan = () => {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [dailyExpenses, setDailyExpenses] = useState<DailyExpense[]>([]);
-  const [latestPlan, setLatestPlan] = useState<AIPlanType | null>(null);
   const [strategy, setStrategy] = useState<AIStrategy>('snowball');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDetailedReport, setShowDetailedReport] = useState(false);
+  const [showFullReport, setShowFullReport] = useState(false);
+  const [savedPlanContent, setSavedPlanContent] = useState<string | null>(null);
+  const [expandedMonth, setExpandedMonth] = useState<number | null>(0);
 
-  const fetchAIPlanData = async () => {
+  const fetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) return;
 
-    const { data: plans } = await supabase
-      .from('ai_plans')
-      .select('*')
-      .eq('userId', user.id)
-      .order('createdAt', { ascending: false })
-      .limit(1);
-
-    if (plans && plans.length > 0) {
-      setLatestPlan(plans[0] as AIPlanType);
-      setStrategy(plans[0].strategy as AIStrategy);
-    }
-
-    const [debtsData, incomesData, expensesData, dailyData] = await Promise.all([
+    const [debtsData, incomesData, expensesData, dailyData, plansData] = await Promise.all([
       supabase.from('debts').select('*').eq('userId', user.id).eq('isActive', true),
       supabase.from('incomes').select('*').eq('userId', user.id).eq('isActive', true),
       supabase.from('expenses').select('*').eq('userId', user.id).eq('isActive', true),
       supabase.from('daily_expenses').select('*').eq('userId', user.id),
+      supabase.from('ai_plans').select('*').eq('userId', user.id).order('createdAt', { ascending: false }).limit(1),
     ]);
-      
+
     if (debtsData.data) setDebts(debtsData.data as Debt[]);
     if (incomesData.data) setIncomes(incomesData.data as Income[]);
     if (expensesData.data) setExpenses(expensesData.data as Expense[]);
     if (dailyData.data) setDailyExpenses(dailyData.data as DailyExpense[]);
+    if (plansData.data && plansData.data.length > 0) {
+      const plan = plansData.data[0] as AIPlanType;
+      setSavedPlanContent(plan.planContent);
+      setStrategy(plan.strategy as AIStrategy);
+    }
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    fetchAIPlanData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // Financial calculations
-  const totalDebt = debts.reduce((acc, d) => acc + d.remainingAmount, 0);
-  const monthlyIncome = incomes.reduce((acc, i) => {
-    switch (i.frequency) {
-      case 'weekly': return acc + (i.amount * 4.33);
-      case 'biweekly': return acc + (i.amount * 2);
-      case 'annual': return acc + (i.amount / 12);
-      default: return acc + i.amount;
-    }
-  }, 0);
-  const monthlyExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-  const monthlyDebtPayments = debts.reduce((acc, d) => acc + d.installmentAmount, 0);
+  // Generate real-time elimination plan
+  const plan: DebtEliminationPlan | null = useMemo(() => {
+    if (debts.length === 0) return null;
+    return generateEliminationPlan(debts, incomes, expenses, dailyExpenses, strategy);
+  }, [debts, incomes, expenses, dailyExpenses, strategy]);
 
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const fullMonthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const snapshot: FinancialSnapshot | null = useMemo(() => {
+    if (debts.length === 0 && incomes.length === 0) return null;
+    return getFinancialSnapshot(debts, incomes, expenses, dailyExpenses);
+  }, [debts, incomes, expenses, dailyExpenses]);
 
-  const monthlyDailyTotal = dailyExpenses
-    .filter(de => {
-      const d = new Date(de.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((acc, de) => acc + de.amount, 0);
-
-  const freeCash = monthlyIncome - monthlyExpenses - monthlyDebtPayments - monthlyDailyTotal;
-
-  // Calculate debt payoff simulation
-  const simulatePayoff = () => {
-    if (debts.length === 0 || freeCash <= 0) return [];
-
-    const sortedDebts = [...debts].sort((a, b) => {
-      if (strategy === 'snowball') return a.remainingAmount - b.remainingAmount;
-      return b.interestRate - a.interestRate;
-    });
-
-    const simulation = sortedDebts.map(d => ({
-      ...d,
-      currentBalance: d.remainingAmount,
-      monthsToPayoff: 0,
-      totalInterest: 0,
-      payoffDate: '',
-    }));
-
-    let availableExtra = freeCash;
-    let monthCount = 0;
-    const maxMonths = 360;
-
-    while (simulation.some(d => d.currentBalance > 0) && monthCount < maxMonths) {
-      monthCount++;
-
-      for (const debt of simulation) {
-        if (debt.currentBalance <= 0) continue;
-
-        const interest = debt.currentBalance * (debt.interestRate / 100);
-        debt.totalInterest += interest;
-        debt.currentBalance += interest;
-
-        const payment = Math.min(debt.installmentAmount + availableExtra, debt.currentBalance);
-        debt.currentBalance -= payment;
-        debt.currentBalance = Math.max(0, debt.currentBalance);
-
-        if (debt.currentBalance <= 0) {
-          debt.monthsToPayoff = monthCount;
-          const payDate = new Date(currentYear, currentMonth + monthCount, 1);
-          debt.payoffDate = `${monthNames[payDate.getMonth()]} ${payDate.getFullYear()}`;
-          availableExtra += debt.installmentAmount;
-        }
-      }
-    }
-
-    return simulation;
-  };
-
-  const payoffSimulation = simulatePayoff();
-  const totalInterest = payoffSimulation.reduce((acc, d) => acc + d.totalInterest, 0);
-  const totalMonths = payoffSimulation.length > 0 ? Math.max(...payoffSimulation.map(d => d.monthsToPayoff)) : 0;
-
-  const getFreedomDate = () => {
-    if (debts.length === 0 || totalDebt <= 0) return 'Sem dívidas';
-    if (freeCash <= 0) return 'Saldo insuficiente';
-    const freedomDate = new Date(currentYear, currentMonth + totalMonths, 1);
-    return `${fullMonthNames[freedomDate.getMonth()]} de ${freedomDate.getFullYear()}`;
-  };
-
-  const prioritizedQueue = [...debts].sort((a, b) => {
-    if (strategy === 'snowball') return a.remainingAmount - b.remainingAmount;
-    return b.interestRate - a.interestRate;
-  });
-
-  const generatePlan = async () => {
+  const generateAndSavePlan = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return;
-    
+    if (!user || !plan) return;
+
     setIsGenerating(true);
-    const toastId = toast.loading('Calculando seu plano personalizado...');
+    const toastId = toast.loading('Gerando análise financeira completa...');
 
     try {
-      const [debtSnap, incomeSnap, expenseSnap, dailySnap] = await Promise.all([
-        supabase.from('debts').select('*').eq('userId', user.id).eq('isActive', true),
-        supabase.from('incomes').select('*').eq('userId', user.id).eq('isActive', true),
-        supabase.from('expenses').select('*').eq('userId', user.id).eq('isActive', true),
-        supabase.from('daily_expenses').select('*').eq('userId', user.id)
-      ]);
-
-      const debtsList = debtSnap.data as Debt[] || [];
-      const incomesList = incomeSnap.data as Income[] || [];
-      const expensesList = expenseSnap.data as Expense[] || [];
-      const dailyList = dailySnap.data as DailyExpense[] || [];
-
-      if (debtsList.length === 0 && incomesList.length === 0) {
-        toast.error('Cadastre pelo menos uma receita ou dívida para calcular o plano.', { id: toastId });
-        setIsGenerating(false);
-        return;
-      }
-
-      const dayOfMonth = now.getDate();
-      const avgDailySpend = dayOfMonth > 0 ? monthlyDailyTotal / dayOfMonth : 0;
-      const projectedDailyExpenses = avgDailySpend * new Date(currentYear, currentMonth + 1, 0).getDate();
-
-      let planContent = '';
-      let calculatedIncome = monthlyIncome;
-      let calculatedExpenses = monthlyExpenses;
-      let calculatedFreeCash = freeCash;
+      // Try the Groq API first, fallback to client-side
+      let planContent = plan.monthlyReport;
 
       try {
         const response = await fetch('/api/generate-plan', {
@@ -198,69 +98,39 @@ export const AIPlan = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             strategy,
-            debts: debtsList,
-            incomes: incomesList,
-            expenses: expensesList,
+            debts: debts.filter(d => d.isActive),
+            incomes: incomes.filter(i => i.isActive),
+            expenses: expenses.filter(e => e.isActive),
             dailyExpenses: {
-              monthlyTotal: monthlyDailyTotal,
-              projectedMonthly: projectedDailyExpenses,
-              avgDaily: avgDailySpend,
-              entries: dailyList.slice(0, 30)
+              monthlyTotal: snapshot?.monthlyDailyExpenses || 0,
+              projectedMonthly: snapshot?.monthlyDailyExpenses || 0,
+              avgDaily: (snapshot?.monthlyDailyExpenses || 0) / 30,
+              entries: dailyExpenses.slice(0, 30),
             }
-          })
+          }),
         });
-
         if (response.ok) {
-          const responseData = await response.json();
-          planContent = responseData.planContent;
-          calculatedIncome = responseData.monthlyIncome ?? monthlyIncome;
-          calculatedExpenses = responseData.monthlyExpenses ?? monthlyExpenses;
-          calculatedFreeCash = responseData.freeCash ?? freeCash;
-        } else {
-          throw new Error('API indisponível');
+          const data = await response.json();
+          if (data.planContent) planContent = data.planContent;
         }
       } catch {
-        // Intelligent client-side generation fallback (works 100% offline)
-        const sortedDebts = [...debtsList].sort((a, b) => 
-          strategy === 'snowball' ? a.remainingAmount - b.remainingAmount : b.interestRate - a.interestRate
-        );
-        const debtCommitment = calculatedIncome > 0 ? ((monthlyDebtPayments / calculatedIncome) * 100).toFixed(1) : '0';
-
-        planContent = `## 📊 RAIO-X FINANCEIRO
-- **Receita Mensal Consolidada**: ${formatCurrency(calculatedIncome)}
-- **Despesas Fixas**: ${formatCurrency(calculatedExpenses)}
-- **Parcelas de Dívidas**: ${formatCurrency(monthlyDebtPayments)}
-- **Gastos Diários Estimados**: ${formatCurrency(projectedDailyExpenses)}
-- **Saldo Livre Real**: ${formatCurrency(calculatedFreeCash)}
-- **Comprometimento da Renda com Dívidas**: ${debtCommitment}%
-
-## ✂️ ONDE CORTAR E OTIMIZAR
-1. **Gastos Diários**: Uma redução de 15% nos gastos diários economizará aproximadamente ${formatCurrency(projectedDailyExpenses * 0.15)} por mês.
-2. **Priorização Máxima**: Redirecione cada centavo do saldo livre exclusivamente para a dívida prioritária.
-
-## 🎯 PLANO DE ATAQUE: ${strategy === 'snowball' ? 'BOLA DE NEVE (Menor Saldo)' : 'AVALANCHE (Maior Taxa de Juros)'}
-${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo: ${formatCurrency(d.remainingAmount)} (Juros: ${d.interestRate}% a.m.)`).join('\n')}
-
-## 🚀 PRÓXIMOS PASSOS (AÇÃO IMEDIATA)
-1. Pague as parcelas mínimas de todas as dívidas para não sujar o nome.
-2. Direcione todo o Saldo Livre extra (${formatCurrency(Math.max(0, calculatedFreeCash))}) para a 1ª prioridade: **${sortedDebts[0]?.name || 'Dívida Principal'}**.
-3. Ao liquidar a primeira dívida, use o valor que sobrou da parcela para acelerar a próxima!`;
+        // API not available — use the comprehensive client-side engine (already done)
       }
 
       await supabase.from('ai_plans').insert([{
         userId: user.id,
         strategy,
         planContent,
-        monthlyIncome: calculatedIncome,
-        monthlyExpenses: calculatedExpenses,
-        freeCash: calculatedFreeCash,
+        monthlyIncome: snapshot?.monthlyIncome || 0,
+        monthlyExpenses: snapshot?.monthlyFixedExpenses || 0,
+        freeCash: snapshot?.freeCash || 0,
         isActive: true,
         createdAt: new Date().toISOString(),
       }]);
 
-      toast.success('Plano gerado com sucesso!', { id: toastId });
-      setShowDetailedReport(true);
-      fetchAIPlanData();
+      setSavedPlanContent(planContent);
+      setShowFullReport(true);
+      toast.success('Plano de eliminação gerado com sucesso!', { id: toastId });
     } catch (error: any) {
       toast.error(error.message || 'Erro ao gerar plano.', { id: toastId });
     } finally {
@@ -274,51 +144,109 @@ ${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo:
     </div>
   );
 
+  if (!snapshot && debts.length === 0 && incomes.length === 0) return (
+    <div className="space-y-5 pb-20 antialiased max-w-xl mx-auto md:max-w-4xl">
+      <Title subtitle="CONSULTOR FINANCEIRO IA">Plano de Eliminação</Title>
+      <div className="bg-white border border-sp-border rounded-3xl p-8 text-center shadow-sm">
+        <AlertCircle className="w-12 h-12 text-sp-text-subtle mx-auto mb-4" />
+        <h3 className="text-lg font-extrabold text-sp-text-dark mb-2">Sem dados suficientes</h3>
+        <p className="text-sm text-sp-text-sec leading-relaxed max-w-sm mx-auto">
+          Cadastre suas <strong>receitas</strong>, <strong>dívidas</strong> e <strong>despesas</strong> para que a IA possa gerar um plano personalizado de eliminação de dívidas.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5 pb-20 antialiased max-w-xl mx-auto md:max-w-4xl">
-      
-      <div>
-        <Title subtitle="PLANO DE ELIMINAÇÃO">Caminho para a Liberdade</Title>
-      </div>
+      <Title subtitle="CONSULTOR FINANCEIRO IA">Plano de Eliminação</Title>
 
-      {/* 1. RESUMO GERAL */}
-      <div className="bg-gradient-to-br from-sp-purple to-indigo-600 text-white rounded-3xl p-6 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8" />
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-8 -mb-8" />
-        
-        <div className="relative z-10">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-1">Libertação Total em</p>
-          <p className="text-2xl sm:text-3xl font-black mb-4">{getFreedomDate()}</p>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/10 rounded-2xl p-3">
-              <p className="text-[10px] font-bold text-white/60 uppercase">Total Dívidas</p>
-              <p className="text-lg font-black">{formatCurrency(totalDebt)}</p>
+      {/* ═══════════════════════════════════════════ */}
+      {/* 1. HEALTH SCORE CARD */}
+      {/* ═══════════════════════════════════════════ */}
+      {snapshot && (
+        <div className={cn(
+          "rounded-3xl p-6 shadow-lg relative overflow-hidden text-white",
+          snapshot.healthStatus === 'critical' ? "bg-gradient-to-br from-red-600 to-red-800" :
+          snapshot.healthStatus === 'danger' ? "bg-gradient-to-br from-orange-600 to-red-700" :
+          snapshot.healthStatus === 'warning' ? "bg-gradient-to-br from-amber-600 to-orange-700" :
+          snapshot.healthStatus === 'caution' ? "bg-gradient-to-br from-yellow-600 to-amber-700" :
+          "bg-gradient-to-br from-emerald-600 to-green-700"
+        )}>
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-10 -mt-10" />
+          <div className="absolute bottom-0 left-0 w-28 h-28 bg-white/5 rounded-full -ml-10 -mb-10" />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-1">
+              <Gauge className="w-5 h-5" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/70">Diagnóstico Financeiro</p>
             </div>
-            <div className="bg-white/10 rounded-2xl p-3">
-              <p className="text-[10px] font-bold text-white/60 uppercase">Saldo Livre</p>
-              <p className={cn("text-lg font-black", freeCash >= 0 ? "text-sp-mint" : "text-red-300")}>{formatCurrency(freeCash)}</p>
+            <h2 className="text-xl sm:text-2xl font-black mb-1">{snapshot.healthLabel}</h2>
+            <p className="text-xs text-white/70 mb-4">
+              Comprometimento: {snapshot.commitmentPercentage.toFixed(1)}% da renda
+            </p>
+
+            {/* Health bar */}
+            <div className="w-full bg-white/20 h-3 rounded-full overflow-hidden mb-5">
+              <div
+                className="h-full rounded-full bg-white/80 transition-all duration-1000"
+                style={{ width: `${Math.min(100, snapshot.commitmentPercentage)}%` }}
+              />
             </div>
-            <div className="bg-white/10 rounded-2xl p-3">
-              <p className="text-[10px] font-bold text-white/60 uppercase">Juros Estimados</p>
-              <p className="text-lg font-black text-amber-300">{formatCurrency(totalInterest)}</p>
-            </div>
-            <div className="bg-white/10 rounded-2xl p-3">
-              <p className="text-[10px] font-bold text-white/60 uppercase">Meses Restantes</p>
-              <p className="text-lg font-black">{totalMonths > 0 ? `${totalMonths} meses` : '—'}</p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-[10px] font-bold text-white/60 uppercase">Total Dívidas</p>
+                <p className="text-lg font-black">{formatCurrency(snapshot.totalDebt)}</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-[10px] font-bold text-white/60 uppercase">Receita</p>
+                <p className="text-lg font-black">{formatCurrency(snapshot.monthlyIncome)}</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-[10px] font-bold text-white/60 uppercase">Saldo Livre</p>
+                <p className={cn("text-lg font-black", snapshot.freeCash >= 0 ? "text-emerald-200" : "text-red-200")}>
+                  {formatCurrency(snapshot.freeCash)}
+                </p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-3">
+                <p className="text-[10px] font-bold text-white/60 uppercase">Meses p/ Liberdade</p>
+                <p className="text-lg font-black">{plan?.totalMonths || '—'}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. SELETOR DE ESTRATÉGIA */}
+      {/* ═══════════════════════════════════════════ */}
+      {/* 2. FREEDOM DATE */}
+      {/* ═══════════════════════════════════════════ */}
+      {plan && plan.totalMonths > 0 && (
+        <div className="bg-gradient-to-br from-sp-purple to-indigo-600 text-white rounded-3xl p-6 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8" />
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center shrink-0">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/60 mb-0.5">Liberdade Financeira em</p>
+              <p className="text-2xl sm:text-3xl font-black">{plan.freedomDate}</p>
+              <p className="text-xs text-white/70 mt-0.5">{plan.totalMonths} meses seguindo o plano com disciplina</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════ */}
+      {/* 3. STRATEGY SELECTOR */}
+      {/* ═══════════════════════════════════════════ */}
       <div className="bg-white border border-sp-border rounded-3xl p-4 shadow-sm">
         <p className="text-[10px] font-bold text-sp-text-subtle uppercase tracking-widest mb-3 px-1">Estratégia de Pagamento</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => setStrategy('snowball')}
             className={cn(
-              "p-4 rounded-2xl border-2 transition-all text-left",
+              "p-4 rounded-2xl border-2 transition-all text-left cursor-pointer",
               strategy === 'snowball'
                 ? "border-sp-purple bg-sp-purple-light"
                 : "border-sp-border hover:border-sp-purple/30"
@@ -328,12 +256,12 @@ ${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo:
               <Award className={cn("w-4 h-4", strategy === 'snowball' ? "text-sp-purple" : "text-sp-text-subtle")} />
               <span className="font-bold text-sm">Bola de Neve</span>
             </div>
-            <p className="text-[11px] text-sp-text-sec">Menor saldo primeiro</p>
+            <p className="text-[11px] text-sp-text-sec">Menor saldo primeiro — vitórias rápidas</p>
           </button>
           <button
             onClick={() => setStrategy('avalanche')}
             className={cn(
-              "p-4 rounded-2xl border-2 transition-all text-left",
+              "p-4 rounded-2xl border-2 transition-all text-left cursor-pointer",
               strategy === 'avalanche'
                 ? "border-sp-purple bg-sp-purple-light"
                 : "border-sp-border hover:border-sp-purple/30"
@@ -343,37 +271,35 @@ ${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo:
               <Flame className={cn("w-4 h-4", strategy === 'avalanche' ? "text-sp-purple" : "text-sp-text-subtle")} />
               <span className="font-bold text-sm">Avalanche</span>
             </div>
-            <p className="text-[11px] text-sp-text-sec">Maior juros primeiro</p>
+            <p className="text-[11px] text-sp-text-sec">Maior juros primeiro — economia máxima</p>
           </button>
         </div>
       </div>
 
-      {/* 3. PLANO DETALHADO POR DÍVIDA */}
-      {payoffSimulation.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
+      {/* ═══════════════════════════════════════════ */}
+      {/* 4. DEBT ELIMINATION QUEUE */}
+      {/* ═══════════════════════════════════════════ */}
+      {plan && plan.payoffQueue.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
             <Target className="w-5 h-5 text-sp-purple" />
-            <h3 className="font-extrabold text-base text-sp-text-dark">Plano de Eliminação</h3>
+            <h3 className="font-extrabold text-base text-sp-text-dark">Ordem de Eliminação</h3>
           </div>
 
-          {payoffSimulation.map((debt, idx) => {
-            const progress = debt.remainingAmount > 0 
-              ? ((debt.remainingAmount - debt.currentBalance) / debt.remainingAmount) * 100 
-              : 100;
-            const isCompleted = debt.currentBalance <= 0;
-            
+          {plan.payoffQueue.map((debt, idx) => {
+            const progress = debt.originalBalance > 0
+              ? ((debt.totalPaid - debt.totalInterestPaid) / debt.originalBalance) * 100
+              : 0;
+
             return (
-              <div key={debt.id} className={cn(
-                "bg-white border rounded-3xl p-5 shadow-sm transition-all",
-                isCompleted ? "border-sp-mint/30 bg-sp-mint/5" : "border-sp-border"
-              )}>
+              <div key={debt.id} className="bg-white border border-sp-border rounded-3xl p-5 shadow-sm">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold text-sm",
-                      isCompleted ? "bg-sp-mint" : "bg-sp-purple"
+                      idx === 0 ? "bg-sp-purple" : "bg-slate-400"
                     )}>
-                      {isCompleted ? <CheckCircle className="w-5 h-5" /> : idx + 1}
+                      {idx + 1}
                     </div>
                     <div>
                       <h4 className="font-extrabold text-sm text-sp-text-dark">{debt.name}</h4>
@@ -381,41 +307,35 @@ ${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo:
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-sm text-sp-text-dark">{formatCurrency(debt.remainingAmount)}</p>
-                    {isCompleted && (
-                      <span className="text-[9px] font-bold text-sp-mint bg-sp-mint-light px-2 py-0.5 rounded-full">QUITADA</span>
-                    )}
+                    <p className="font-black text-sm text-sp-text-dark">{formatCurrency(debt.originalBalance)}</p>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-3">
-                  <div 
-                    className={cn("h-full rounded-full transition-all duration-500", isCompleted ? "bg-sp-mint" : "bg-sp-purple")}
-                    style={{ width: `${Math.min(100, progress)}%` }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-slate-50 rounded-xl p-2.5 text-center">
                     <p className="text-[9px] font-bold text-sp-text-subtle uppercase">Parcela</p>
                     <p className="text-xs font-bold text-sp-text-dark">{formatCurrency(debt.installmentAmount)}</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] font-bold text-sp-text-subtle uppercase">Meses</p>
-                    <p className="text-xs font-bold text-sp-text-dark">{debt.monthsToPayoff > 0 ? debt.monthsToPayoff : '—'}</p>
+                    <p className="text-[9px] font-bold text-sp-text-subtle uppercase">Tempo</p>
+                    <p className="text-xs font-bold text-sp-text-dark">{debt.monthsToPayoff > 0 ? `${debt.monthsToPayoff} meses` : '—'}</p>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] font-bold text-sp-text-subtle uppercase">Quitação</p>
-                    <p className="text-xs font-bold text-sp-purple">{debt.payoffDate || '—'}</p>
+                  <div className="bg-sp-purple-light rounded-xl p-2.5 text-center">
+                    <p className="text-[9px] font-bold text-sp-purple uppercase">Quitação</p>
+                    <p className="text-xs font-bold text-sp-purple">{debt.payoffDate}</p>
                   </div>
                 </div>
 
-                {!isCompleted && freeCash > 0 && idx === 0 && (
+                <div className="bg-slate-50 rounded-xl p-2.5 flex items-center justify-between text-[11px]">
+                  <span className="text-sp-text-sec font-semibold">Juros que serão pagos:</span>
+                  <span className="font-bold text-amber-600">{formatCurrency(debt.totalInterestPaid)}</span>
+                </div>
+
+                {idx === 0 && snapshot && snapshot.freeCash > 0 && (
                   <div className="mt-3 p-3 bg-sp-purple-light rounded-xl flex items-start gap-2">
                     <Zap className="w-4 h-4 text-sp-purple shrink-0 mt-0.5" />
                     <p className="text-[11px] text-sp-purple font-semibold leading-relaxed">
-                      Foque toda a sua energia nesta dívida. Ao quitá-la, o valor da parcela ({formatCurrency(debt.installmentAmount)}) será redirecionado para a próxima.
+                      <strong>FOCO AQUI!</strong> Direcione todo saldo livre ({formatCurrency(snapshot.freeCash)}/mês) para esta dívida. Ao quitá-la, a parcela de {formatCurrency(debt.installmentAmount)} será redirecionada para a próxima.
                     </p>
                   </div>
                 )}
@@ -425,125 +345,190 @@ ${sortedDebts.map((d, idx) => `**${idx + 1}ª Prioridade**: ${d.name} — Saldo:
         </div>
       )}
 
-      {/* 4. CRONOGRAMA MENSAL */}
-      {payoffSimulation.length > 0 && totalMonths > 0 && (
+      {/* ═══════════════════════════════════════════ */}
+      {/* 5. MONTHLY ACTION TIMELINE */}
+      {/* ═══════════════════════════════════════════ */}
+      {plan && plan.monthlyActions.length > 0 && (
         <div className="bg-white border border-sp-border rounded-3xl p-5 shadow-sm">
-          <h3 className="font-extrabold text-base text-sp-text-dark mb-4">Cronograma de Pagamento</h3>
-          
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="w-5 h-5 text-sp-purple" />
+            <h3 className="font-extrabold text-base text-sp-text-dark">O Que Fazer a Cada Mês</h3>
+          </div>
+
           <div className="space-y-2">
-            {Array.from({ length: Math.min(totalMonths, 12) }, (_, i) => {
-              const monthDate = new Date(currentYear, currentMonth + i, 1);
-              const monthLabel = `${monthNames[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
-              const isActive = i === 0;
-              const isLast = i === Math.min(totalMonths, 12) - 1;
-              
-              const debtsThisMonth = payoffSimulation.filter(d => {
-                const startMonth = currentMonth;
-                const endMonth = d.monthsToPayoff;
-                return i >= 0 && i < endMonth;
-              });
+            {plan.monthlyActions.slice(0, 18).map((action, i) => {
+              const isExpanded = expandedMonth === i;
+              const hasPaidOff = action.debtsPaidOff.length > 0;
+              const isFirst = i === 0;
 
               return (
-                <div key={i} className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl transition-all",
-                  isActive ? "bg-sp-purple-light border border-sp-purple/20" : "bg-slate-50"
-                )}>
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
-                    isActive ? "bg-sp-purple text-white" : "bg-slate-200 text-sp-text-sec"
-                  )}>
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-sp-text-dark">{monthLabel}</p>
-                    <p className="text-[10px] text-sp-text-sec truncate">
-                      {debtsThisMonth.map(d => d.name).join(', ') || 'Sem pagamentos'}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-bold text-sp-text-dark">
-                      {formatCurrency(debtsThisMonth.reduce((acc, d) => acc + d.installmentAmount, 0))}
-                    </p>
-                  </div>
+                <div key={i}>
+                  <button
+                    onClick={() => setExpandedMonth(isExpanded ? null : i)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer",
+                      isFirst ? "bg-sp-purple-light border border-sp-purple/20" :
+                      hasPaidOff ? "bg-emerald-50 border border-emerald-200" :
+                      "bg-slate-50 hover:bg-slate-100"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
+                      isFirst ? "bg-sp-purple text-white" :
+                      hasPaidOff ? "bg-emerald-500 text-white" :
+                      "bg-slate-200 text-sp-text-sec"
+                    )}>
+                      {hasPaidOff ? <CheckCircle className="w-4 h-4" /> : action.month}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-sp-text-dark">{action.monthLabel}</p>
+                      <p className="text-[10px] text-sp-text-sec truncate">
+                        {hasPaidOff
+                          ? `🎉 Quita: ${action.debtsPaidOff.join(', ')}`
+                          : `Pagando: ${action.debtsActive.slice(0, 2).join(', ')}${action.debtsActive.length > 2 ? '...' : ''}`
+                        }
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <p className="text-xs font-bold text-sp-text-dark">{formatCurrency(action.totalPayment)}</p>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-sp-text-subtle" /> : <ChevronDown className="w-4 h-4 text-sp-text-subtle" />}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="ml-11 mt-1 mb-2 p-3 bg-slate-50 rounded-xl text-[11px] space-y-1.5 border border-slate-100">
+                      <div className="flex justify-between">
+                        <span className="text-sp-text-sec">💰 Pagamento total:</span>
+                        <span className="font-bold">{formatCurrency(action.totalPayment)}</span>
+                      </div>
+                      {action.extraPayment > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-sp-text-sec">⚡ Pagamento extra:</span>
+                          <span className="font-bold text-sp-purple">{formatCurrency(action.extraPayment)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-sp-text-sec">📉 Dívida restante:</span>
+                        <span className="font-bold">{formatCurrency(action.remainingDebt)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sp-text-sec">💵 Total pago até aqui:</span>
+                        <span className="font-bold">{formatCurrency(action.cumulativePaid)}</span>
+                      </div>
+                      {action.debtsPaidOff.length > 0 && (
+                        <div className="mt-2 p-2 bg-emerald-50 rounded-lg text-emerald-700 font-bold">
+                          🎉 Dívida(s) eliminada(s): {action.debtsPaidOff.join(', ')}
+                        </div>
+                      )}
+                      {action.debtsActive.length > 0 && (
+                        <div className="text-sp-text-sec">
+                          📋 Dívidas ativas: {action.debtsActive.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
-            {totalMonths > 12 && (
+
+            {plan.monthlyActions.length > 18 && (
               <div className="text-center py-2">
-                <span className="text-xs font-bold text-sp-text-subtle">+ {totalMonths - 12} meses restantes</span>
+                <span className="text-xs font-bold text-sp-text-subtle">+ {plan.monthlyActions.length - 18} meses restantes</span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* 5. DICAS RÁPIDAS */}
-      {freeCash > 0 && debts.length > 0 && (
+      {/* ═══════════════════════════════════════════ */}
+      {/* 6. QUICK RECOMMENDATIONS */}
+      {/* ═══════════════════════════════════════════ */}
+      {snapshot && snapshot.freeCash > 0 && debts.length > 0 && (
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-3xl p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-5 h-5 text-amber-600" />
-            <h4 className="font-extrabold text-sm text-amber-900">Dicas para Acelerar</h4>
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <h4 className="font-extrabold text-sm text-amber-900">Ações Imediatas para Acelerar</h4>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2.5">
             <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-              <p className="text-xs text-amber-800 leading-relaxed">Reduza gastos diários em 10% e direcione o excedente para a dívida prioritária.</p>
+              <span className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</span>
+              <p className="text-xs text-amber-900 leading-relaxed">
+                <strong>Pague as parcelas mínimas de todas as dívidas</strong> para evitar atrasos e juros extras.
+              </p>
             </li>
             <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-              <p className="text-xs text-amber-800 leading-relaxed">Negocie taxas de juros com seus credores. Uma redução de 2% pode economizar {formatCurrency(totalDebt * 0.02)}.</p>
+              <span className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</span>
+              <p className="text-xs text-amber-900 leading-relaxed">
+                <strong>Todo saldo livre ({formatCurrency(snapshot.freeCash)})</strong> deve ir para a 1ª dívida prioritária: <strong>{plan?.payoffQueue[0]?.name || 'dívida principal'}</strong>.
+              </p>
             </li>
+            {snapshot.monthlyDailyExpenses > 0 && (
+              <li className="flex items-start gap-2">
+                <span className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</span>
+                <p className="text-xs text-amber-900 leading-relaxed">
+                  <strong>Corte 15% dos gastos diários</strong> e economize {formatCurrency(snapshot.monthlyDailyExpenses * 0.15)}/mês extra para as dívidas.
+                </p>
+              </li>
+            )}
             <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-              <p className="text-xs text-amber-800 leading-relaxed">Busque renda extra para acelerar ainda mais a quitação.</p>
+              <span className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{snapshot.monthlyDailyExpenses > 0 ? '4' : '3'}</span>
+              <p className="text-xs text-amber-900 leading-relaxed">
+                <strong>Ao quitar cada dívida</strong>, redirecione a parcela liberada para a próxima dívida na fila — efeito {strategy === 'snowball' ? 'bola de neve' : 'avalanche'}.
+              </p>
             </li>
           </ul>
         </div>
       )}
 
-      {/* 6. GERAR RELATÓRIO IA */}
+      {/* ═══════════════════════════════════════════ */}
+      {/* 7. GENERATE FULL AI REPORT */}
+      {/* ═══════════════════════════════════════════ */}
       <div className="bg-sp-purple text-white rounded-3xl p-6 shadow-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-6 -mt-6" />
+        <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full -mr-8 -mt-8" />
         <div className="relative z-10 space-y-3 mb-5">
-          <h3 className="text-lg font-extrabold">Relatório Completo com IA</h3>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-6 h-6 fill-current" />
+            <h3 className="text-lg font-extrabold">Relatório Completo com IA</h3>
+          </div>
           <p className="text-xs text-white/80 leading-relaxed">
-            Nossa inteligência artificial analisa seus dados e cria um plano personalizado com ações específicas para cada dívida.
+            Gere um relatório detalhado com diagnóstico financeiro, plano mês a mês, recomendações personalizadas e projeção de quando você estará 100% livre de dívidas.
           </p>
         </div>
-        <BrutalButton 
-          onClick={generatePlan}
+        <BrutalButton
+          onClick={generateAndSavePlan}
           className="w-full h-12 font-extrabold text-sp-purple bg-white border-transparent hover:bg-slate-50 shadow-md"
           isLoading={isGenerating}
         >
-          <Sparkles className="w-5 h-5 mr-1" />
-          Gerar Plano IA
+          <FileText className="w-5 h-5 mr-1" />
+          Gerar Relatório Completo
         </BrutalButton>
       </div>
 
-      {/* 7. RELATÓRIO DA IA */}
-      {latestPlan && (
+      {/* ═══════════════════════════════════════════ */}
+      {/* 8. SAVED AI REPORT */}
+      {/* ═══════════════════════════════════════════ */}
+      {savedPlanContent && (
         <div className="bg-white border border-sp-border rounded-3xl p-5 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-sp-mint" />
-              <h4 className="font-extrabold text-sm text-sp-text-dark">Relatório IA</h4>
+              <h4 className="font-extrabold text-sm text-sp-text-dark">Relatório IA Detalhado</h4>
             </div>
-            <button 
-              onClick={() => setShowDetailedReport(!showDetailedReport)}
-              className="text-xs font-bold text-sp-purple hover:underline"
+            <button
+              onClick={() => setShowFullReport(!showFullReport)}
+              className="text-xs font-bold text-sp-purple hover:underline cursor-pointer"
             >
-              {showDetailedReport ? 'Ocultar' : 'Ver relatório'}
+              {showFullReport ? 'Ocultar' : 'Ver relatório completo'}
             </button>
           </div>
 
-          {showDetailedReport && (
-            <div className="custom-markdown bg-sp-bg p-4 rounded-2xl border border-sp-border max-h-[500px] overflow-y-auto">
-              <ReactMarkdown>{latestPlan.planContent}</ReactMarkdown>
+          {showFullReport && (
+            <div className="custom-markdown bg-sp-bg p-4 rounded-2xl border border-sp-border max-h-[600px] overflow-y-auto">
+              <ReactMarkdown>{savedPlanContent}</ReactMarkdown>
             </div>
           )}
         </div>
       )}
-
     </div>
   );
 };
