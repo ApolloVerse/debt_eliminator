@@ -98,10 +98,6 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-sp-purple/10 text-sp-purple border border-sp-purple/30 select-none">
               v1.1
             </span>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Demo Ativa
-            </span>
           </Link>
         </div>
 
