@@ -4,8 +4,8 @@ import { Income } from "../types";
 import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/BrutalUI";
 import { Modal } from "../components/Modal";
 import { CategorySelect } from "../components/CategorySelect";
-import { formatCurrency, parseCurrency, cn } from "../lib/utils";
-import { Plus, Pencil, Trash2, DollarSign, Calendar, CheckCircle2, Clock, TrendingUp } from "lucide-react";
+import { formatCurrency, parseCurrency, addMonthsToDate, cn } from "../lib/utils";
+import { Plus, Pencil, Trash2, DollarSign, Calendar, CheckCircle2, Clock, TrendingUp, Repeat } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ type FormData = {
   expectedDate: string;
   isReceived: boolean;
   recurrenceDay: number;
+  repeatMonths: number;
 };
 
 export const Incomes = () => {
@@ -51,8 +52,8 @@ export const Incomes = () => {
   const [tab, setTab] = useState<"all" | "received" | "pending" | "future">("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, watch, control } = useForm<FormData>({
-    defaultValues: { name: "", amount: 0, frequency: "monthly", type: "fixed", category: "salary", expectedDate: "", isReceived: false, recurrenceDay: 5 }
+  const { register, handleSubmit, reset, watch, control, setValue } = useForm<FormData>({
+    defaultValues: { name: "", amount: "", frequency: "monthly", type: "fixed", category: "salary", expectedDate: "", isReceived: false, recurrenceDay: 5, repeatMonths: 1 }
   });
 
   const fetchIncomes = async () => {
@@ -69,7 +70,7 @@ export const Incomes = () => {
 
   const openAdd = () => {
     setEditingIncome(null);
-    reset({ name: "", amount: 0, frequency: "monthly", type: "fixed", category: "salary", expectedDate: today, isReceived: false, recurrenceDay: 5 });
+    reset({ name: "", amount: "", frequency: "monthly", type: "fixed", category: "salary", expectedDate: today, isReceived: false, recurrenceDay: 5, repeatMonths: 1 });
     setIsModalOpen(true);
   };
 
@@ -84,6 +85,7 @@ export const Incomes = () => {
       expectedDate: income.expectedDate || today,
       isReceived: income.isReceived || false,
       recurrenceDay: income.recurrenceDay || 5,
+      repeatMonths: 1,
     });
     setIsModalOpen(true);
   };
@@ -108,25 +110,58 @@ export const Incomes = () => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      const payload = {
+      const parsedAmount = parseCurrency(data.amount);
+      const basePayload = {
         name: data.name,
-        frequency: data.frequency,
-        amount: parseCurrency(data.amount),
+        frequency: (data.frequency as any) || "monthly",
+        amount: parsedAmount,
         type: data.type,
         category: data.category,
         expectedDate: data.expectedDate || null,
         isReceived: data.isReceived,
+        paymentDate: data.isReceived ? (data.expectedDate || new Date().toISOString().split("T")[0]) : null,
         recurrenceDay: data.recurrenceDay ? Number(data.recurrenceDay) : null,
         userId: user.id,
         isActive: true,
         updatedAt: new Date().toISOString(),
       };
+
       if (editingIncome) {
-        await supabase.from("incomes").update(payload).eq("id", editingIncome.id).throwOnError();
+        await supabase.from("incomes").update(basePayload).eq("id", editingIncome.id).throwOnError();
         toast.success("Receita atualizada");
       } else {
-        await supabase.from("incomes").insert([{ ...payload, createdAt: new Date().toISOString() }]).throwOnError();
-        toast.success("Receita cadastrada");
+        const repeatCount = data.repeatMonths ? Math.min(60, Math.max(1, Number(data.repeatMonths))) : 1;
+
+        if (repeatCount > 1) {
+          const baseDate = data.expectedDate || today;
+          const recurrenceDay = data.recurrenceDay ? Number(data.recurrenceDay) : (baseDate ? parseInt(baseDate.split("-")[2] || "5", 10) : 5);
+          const entries = [];
+
+          for (let i = 0; i < repeatCount; i++) {
+            const itemDate = addMonthsToDate(baseDate, i);
+            const isFirstRec = i === 0 ? Boolean(data.isReceived) : false;
+            entries.push({
+              name: `${data.name} (${i + 1}/${repeatCount})`,
+              amount: parsedAmount,
+              frequency: (data.frequency as any) || "monthly",
+              type: data.type,
+              category: data.category,
+              expectedDate: itemDate,
+              isReceived: isFirstRec,
+              recurrenceDay,
+              userId: user.id,
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+
+          await supabase.from("incomes").insert(entries).throwOnError();
+          toast.success(`${repeatCount} receitas mensais geradas com sucesso!`);
+        } else {
+          await supabase.from("incomes").insert([{ ...basePayload, createdAt: new Date().toISOString() }]).throwOnError();
+          toast.success("Receita cadastrada");
+        }
       }
       setIsModalOpen(false);
       await fetchIncomes();
@@ -166,6 +201,8 @@ export const Incomes = () => {
   ];
 
   const watchedType = watch("type");
+  const watchedRepeatMonths = Number(watch("repeatMonths")) || 1;
+  const watchedAmount = watch("amount");
 
   return (
     <div className="space-y-6 pb-20 antialiased max-w-xl mx-auto md:max-w-4xl">
@@ -356,6 +393,66 @@ export const Incomes = () => {
               </div>
             )}
           </div>
+          {/* Repeating Months Selector */}
+          {!editingIncome && (
+            <div className="bg-sp-purple/5 border border-sp-purple/20 p-4 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-sp-purple/10 flex items-center justify-center text-sp-purple">
+                    <Repeat className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-sp-text-dark">Repetir por quantos meses?</span>
+                </div>
+                <span className="text-[10px] font-black text-sp-purple bg-sp-purple/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  {watchedRepeatMonths > 1 ? `${watchedRepeatMonths} meses` : '1 mês (único)'}
+                </span>
+              </div>
+              
+              <p className="text-[11px] text-sp-text-sec leading-snug">
+                Ideal para salários, pensões, aluguéis recebidos ou receitas recorrentes. Lança os próximos meses automaticamente como receitas futuras a receber.
+              </p>
+              
+              <div className="flex items-center gap-2 pt-1">
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="60" 
+                  {...register("repeatMonths", { valueAsNumber: true })} 
+                  className="w-20 bg-white border border-sp-border focus:border-sp-purple px-3 py-1.5 rounded-xl text-xs font-black text-center text-sp-text-dark focus:outline-none focus:ring-2 focus:ring-sp-purple/20 transition-all shadow-xs"
+                />
+                <span className="text-xs font-bold text-sp-text-sec">meses</span>
+                
+                {/* Quick Chips */}
+                <div className="flex gap-1.5 ml-auto overflow-x-auto no-scrollbar">
+                  {[1, 3, 6, 12, 24].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setValue("repeatMonths", m)}
+                      className={cn(
+                        "text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer whitespace-nowrap",
+                        watchedRepeatMonths === m 
+                          ? "bg-sp-purple border-sp-purple text-white shadow-xs" 
+                          : "bg-white border-sp-border text-sp-text-sec hover:border-sp-purple/40 hover:text-sp-purple"
+                      )}
+                    >
+                      {m === 1 ? "1 mês" : `${m} meses`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {watchedRepeatMonths > 1 && (
+                <div className="text-[11px] font-semibold text-sp-purple bg-white border border-sp-purple/20 p-2.5 rounded-xl flex items-center justify-between shadow-xs">
+                  <span>Total acumulado ({watchedRepeatMonths} meses):</span>
+                  <span className="font-black text-sm text-sp-purple">
+                    {formatCurrency(parseCurrency(watchedAmount || 0) * watchedRepeatMonths)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
             <input type="checkbox" id="isReceived-chk" {...register("isReceived")} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
             <label htmlFor="isReceived-chk" className="text-sm font-semibold text-emerald-800 cursor-pointer">Ja foi recebida</label>

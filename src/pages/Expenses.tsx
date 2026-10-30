@@ -4,8 +4,8 @@ import { Expense } from "../types";
 import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/BrutalUI";
 import { Modal } from "../components/Modal";
 import { CategorySelect } from "../components/CategorySelect";
-import { formatCurrency, parseCurrency, cn } from "../lib/utils";
-import { Plus, Pencil, Trash2, ShoppingCart, Home, Car, Heart, GraduationCap, Zap, Tv, MoreHorizontal, Calendar, CheckCircle2, Clock, TrendingDown } from "lucide-react";
+import { formatCurrency, parseCurrency, addMonthsToDate, cn } from "../lib/utils";
+import { Plus, Pencil, Trash2, ShoppingCart, Home, Car, Heart, GraduationCap, Zap, Tv, MoreHorizontal, Calendar, CheckCircle2, Clock, TrendingDown, Repeat } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -57,6 +57,7 @@ type FormData = {
   dueDate: string;
   isPaid: boolean;
   recurrenceDay: number;
+  repeatMonths: number;
 };
 
 export const Expenses = () => {
@@ -67,8 +68,8 @@ export const Expenses = () => {
   const [tab, setTab] = useState<"all" | "pending" | "paid" | "future">("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, watch, control } = useForm<FormData>({
-    defaultValues: { name: "", amount: 0, category: "other", type: "fixed", dueDate: "", isPaid: false, recurrenceDay: 1 }
+  const { register, handleSubmit, reset, watch, control, setValue } = useForm<FormData>({
+    defaultValues: { name: "", amount: "", category: "other", type: "fixed", dueDate: "", isPaid: false, recurrenceDay: 1, repeatMonths: 1 }
   });
 
   const fetchExpenses = async () => {
@@ -85,7 +86,7 @@ export const Expenses = () => {
 
   const openAdd = () => {
     setEditingExpense(null);
-    reset({ name: "", amount: 0, category: "other", type: "fixed", dueDate: today, isPaid: false, recurrenceDay: 1 });
+    reset({ name: "", amount: "", category: "other", type: "fixed", dueDate: today, isPaid: false, recurrenceDay: 1, repeatMonths: 1 });
     setIsModalOpen(true);
   };
 
@@ -99,6 +100,7 @@ export const Expenses = () => {
       dueDate: expense.dueDate || today,
       isPaid: expense.isPaid || false,
       recurrenceDay: expense.recurrenceDay || 1,
+      repeatMonths: 1,
     });
     setIsModalOpen(true);
   };
@@ -124,25 +126,57 @@ export const Expenses = () => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      const payload = {
+      const parsedAmount = parseCurrency(data.amount);
+      const basePayload = {
         name: data.name,
         category: data.category,
-        amount: parseCurrency(data.amount),
+        amount: parsedAmount,
         type: data.type,
         dueDate: data.dueDate || null,
         isPaid: data.isPaid,
-        paymentDate: data.isPaid ? new Date().toISOString().split("T")[0] : null,
+        paymentDate: data.isPaid ? (data.dueDate || new Date().toISOString().split("T")[0]) : null,
         recurrenceDay: data.recurrenceDay ? Number(data.recurrenceDay) : null,
         userId: user.id,
         isActive: true,
         updatedAt: new Date().toISOString(),
       };
+
       if (editingExpense) {
-        await supabase.from("expenses").update(payload).eq("id", editingExpense.id).throwOnError();
+        await supabase.from("expenses").update(basePayload).eq("id", editingExpense.id).throwOnError();
         toast.success("Despesa atualizada");
       } else {
-        await supabase.from("expenses").insert([{ ...payload, createdAt: new Date().toISOString() }]).throwOnError();
-        toast.success("Despesa cadastrada");
+        const repeatCount = data.repeatMonths ? Math.min(60, Math.max(1, Number(data.repeatMonths))) : 1;
+        
+        if (repeatCount > 1) {
+          const baseDate = data.dueDate || today;
+          const recurrenceDay = data.recurrenceDay ? Number(data.recurrenceDay) : (baseDate ? parseInt(baseDate.split("-")[2] || "1", 10) : 1);
+          const entries = [];
+
+          for (let i = 0; i < repeatCount; i++) {
+            const itemDueDate = addMonthsToDate(baseDate, i);
+            const isFirstPaid = i === 0 ? Boolean(data.isPaid) : false;
+            entries.push({
+              name: `${data.name} (${i + 1}/${repeatCount})`,
+              category: data.category,
+              amount: parsedAmount,
+              type: data.type,
+              dueDate: itemDueDate,
+              isPaid: isFirstPaid,
+              paymentDate: isFirstPaid ? (data.dueDate || today) : null,
+              recurrenceDay,
+              userId: user.id,
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+
+          await supabase.from("expenses").insert(entries).throwOnError();
+          toast.success(`${repeatCount} despesas mensais criadas com sucesso!`);
+        } else {
+          await supabase.from("expenses").insert([{ ...basePayload, createdAt: new Date().toISOString() }]).throwOnError();
+          toast.success("Despesa cadastrada");
+        }
       }
       setIsModalOpen(false);
       await fetchExpenses();
@@ -182,6 +216,8 @@ export const Expenses = () => {
   ];
 
   const watchedType = watch("type");
+  const watchedRepeatMonths = Number(watch("repeatMonths")) || 1;
+  const watchedAmount = watch("amount");
 
   return (
     <div className="space-y-6 pb-20 antialiased max-w-xl mx-auto md:max-w-4xl">
@@ -361,6 +397,66 @@ export const Expenses = () => {
               </div>
             )}
           </div>
+          {/* Repeating Months Selector (Any Category) */}
+          {!editingExpense && (
+            <div className="bg-sp-purple/5 border border-sp-purple/20 p-4 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-sp-purple/10 flex items-center justify-center text-sp-purple">
+                    <Repeat className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-sp-text-dark">Repetir por quantos meses?</span>
+                </div>
+                <span className="text-[10px] font-black text-sp-purple bg-sp-purple/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  {watchedRepeatMonths > 1 ? `${watchedRepeatMonths} meses` : '1 mês (único)'}
+                </span>
+              </div>
+              
+              <p className="text-[11px] text-sp-text-sec leading-snug">
+                Ideal para contas de celular, assinaturas e despesas fixas. Lança automaticamente os próximos meses com datas calculadas, ficando no app como valor futuro a pagar.
+              </p>
+              
+              <div className="flex items-center gap-2 pt-1">
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="60" 
+                  {...register("repeatMonths", { valueAsNumber: true })} 
+                  className="w-20 bg-white border border-sp-border focus:border-sp-purple px-3 py-1.5 rounded-xl text-xs font-black text-center text-sp-text-dark focus:outline-none focus:ring-2 focus:ring-sp-purple/20 transition-all shadow-xs"
+                />
+                <span className="text-xs font-bold text-sp-text-sec">meses</span>
+                
+                {/* Quick Chips */}
+                <div className="flex gap-1.5 ml-auto overflow-x-auto no-scrollbar">
+                  {[1, 3, 6, 12, 24].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setValue("repeatMonths", m)}
+                      className={cn(
+                        "text-[10px] font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer whitespace-nowrap",
+                        watchedRepeatMonths === m 
+                          ? "bg-sp-purple border-sp-purple text-white shadow-xs" 
+                          : "bg-white border-sp-border text-sp-text-sec hover:border-sp-purple/40 hover:text-sp-purple"
+                      )}
+                    >
+                      {m === 1 ? "1 mês" : `${m} meses`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {watchedRepeatMonths > 1 && (
+                <div className="text-[11px] font-semibold text-sp-purple bg-white border border-sp-purple/20 p-2.5 rounded-xl flex items-center justify-between shadow-xs">
+                  <span>Total acumulado ({watchedRepeatMonths} meses):</span>
+                  <span className="font-black text-sm text-sp-purple">
+                    {formatCurrency(parseCurrency(watchedAmount || 0) * watchedRepeatMonths)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
             <input type="checkbox" id="isPaid-chk" {...register("isPaid")} className="w-4 h-4 accent-emerald-600 cursor-pointer" />
             <label htmlFor="isPaid-chk" className="text-sm font-semibold text-emerald-800 cursor-pointer">Ja foi paga</label>

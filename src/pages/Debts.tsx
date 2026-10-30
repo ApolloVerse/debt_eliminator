@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Debt } from '../types';
 import { Title, BrutalButton, BrutalCard, BrutalLabel, BrutalInput, BrutalSelect } from '../components/BrutalUI';
@@ -50,7 +50,7 @@ export const Debts = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const { register, handleSubmit, reset, watch, control } = useForm<any>();
+  const { register, handleSubmit, reset, watch, control, setValue } = useForm<any>();
   const { fields: futureBillsFields, append, remove } = useFieldArray({ control, name: 'futureBills' });
 
   const rawDebtType = watch('type');
@@ -161,9 +161,22 @@ export const Debts = () => {
         finalTotalInst = 1;
       } else {
         // variable or monthly
-        finalRemaining = parseCurrency(data.remainingInstallments) * finalInstallmentAmt;
-        finalTotalInst = parseCurrency(data.remainingInstallments) + parseCurrency(data.paidInstallments);
-        finalTotalAmount = finalTotalAmount || finalRemaining;
+        const paidInst = parseCurrency(data.paidInstallments) || 0;
+        let remInst = parseCurrency(data.remainingInstallments);
+        let totInst = parseCurrency(data.totalInstallments);
+
+        if (!remInst && totInst) {
+          remInst = Math.max(0, totInst - paidInst);
+        } else if (remInst && !totInst) {
+          totInst = remInst + paidInst;
+        } else if (!remInst && !totInst) {
+          totInst = 12;
+          remInst = 12;
+        }
+
+        finalTotalInst = Math.max(1, totInst || (remInst + paidInst));
+        finalRemaining = remInst * finalInstallmentAmt;
+        finalTotalAmount = finalTotalAmount || (finalTotalInst * finalInstallmentAmt) || finalRemaining;
       }
 
       const isPaid = data.isPaid === true || data.isPaid === 'true';
@@ -521,11 +534,23 @@ export const Debts = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <BrutalLabel>Parcelas Pagas (meses já pagos)</BrutalLabel>
-                  <BrutalInput type="number" {...register('paidInstallments')} defaultValue={0} />
+                  <BrutalInput type="number" min="0" {...register('paidInstallments')} defaultValue={0} />
                 </div>
                 <div>
-                  <BrutalLabel>Total de Parcelas / Meses</BrutalLabel>
-                  <BrutalInput type="number" {...register('totalInstallments')} defaultValue={12} />
+                  <BrutalLabel>Total de Parcelas / Meses a Repetir</BrutalLabel>
+                  <BrutalInput type="number" min="1" max="120" {...register('totalInstallments')} defaultValue={12} />
+                  <div className="flex gap-1 mt-2 overflow-x-auto no-scrollbar">
+                    {[1, 3, 6, 12, 24, 36].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setValue('totalInstallments', m)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200 bg-white text-blue-700 hover:bg-blue-600 hover:text-white transition-all cursor-pointer whitespace-nowrap"
+                      >
+                        {m}x
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

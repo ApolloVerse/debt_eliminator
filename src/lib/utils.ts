@@ -53,3 +53,24 @@ export function getFutureBills(typeString: string): { amount: string }[] {
   } catch (e) {}
   return [];
 }
+
+export function addMonthsToDate(dateStr: string, monthsToAdd: number): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length < 3) return dateStr;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+
+  const targetDate = new Date(year, month + monthsToAdd, 1);
+  const targetYear = targetDate.getFullYear();
+  const targetMonth = targetDate.getMonth();
+  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const clampedDay = Math.min(day, daysInTargetMonth);
+
+  const yStr = String(targetYear);
+  const mStr = String(targetMonth + 1).padStart(2, '0');
+  const dStr = String(clampedDay).padStart(2, '0');
+  return `${yStr}-${mStr}-${dStr}`;
+}
+
