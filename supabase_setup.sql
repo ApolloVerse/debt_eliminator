@@ -60,10 +60,14 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     "recurrenceDay" INTEGER,
     "isPaid" BOOLEAN DEFAULT false,
     "paymentDate" TEXT,
+    "cardLimit" NUMERIC DEFAULT 0,
+    "bank" TEXT,
     "isActive" BOOLEAN DEFAULT true,
     "createdAt" TIMESTAMPTZ DEFAULT now(),
     "updatedAt" TIMESTAMPTZ DEFAULT now()
 );
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "cardLimit" NUMERIC DEFAULT 0;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "bank" TEXT;
 
 -- ============================================================
 -- 4. DAILY EXPENSES TABLE

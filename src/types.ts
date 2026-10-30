@@ -74,6 +74,8 @@ export interface Expense {
   paymentDate?: string;
   recurrenceDate?: string;
   recurrenceDay?: number;
+  cardLimit?: number;
+  bank?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
