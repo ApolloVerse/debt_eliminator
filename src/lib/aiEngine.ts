@@ -62,29 +62,25 @@ export function getFinancialSnapshot(
   expenses: Expense[],
   dailyExpenses: DailyExpense[]
 ): FinancialSnapshot {
-  const totalDebt = debts.filter(d => d.isActive).reduce((acc, d) => acc + d.remainingAmount, 0);
+  const totalDebt = debts.filter(d => d.isActive && !d.isPaid).reduce((acc, d) => acc + (Number(d.remainingAmount) || 0), 0);
 
-  const monthlyIncome = incomes.filter(i => i.isActive).reduce((acc, i) => {
-    switch (i.frequency) {
-      case 'weekly': return acc + (i.amount * 4.33);
-      case 'biweekly': return acc + (i.amount * 2);
-      case 'annual': return acc + (i.amount / 12);
-      default: return acc + i.amount;
-    }
-  }, 0);
+  const monthlyIncome = incomes.filter(i => i.isActive).reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
 
-  const monthlyFixedExpenses = expenses.filter(e => e.isActive).reduce((acc, e) => acc + e.amount, 0);
-  const monthlyDebtPayments = debts.filter(d => d.isActive).reduce((acc, d) => acc + d.installmentAmount, 0);
+  const monthlyFixedExpenses = expenses.filter(e => e.isActive).reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const monthlyDebtPayments = debts.filter(d => d.isActive && !d.isPaid).reduce((acc, d) => acc + (Number(d.installmentAmount || d.remainingAmount) || 0), 0);
 
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const currentYearStr = String(now.getFullYear());
+  const currentMonthKey = `${currentYearStr}-${currentMonthStr}`;
+
   const monthlyDailyExpenses = dailyExpenses
     .filter(de => {
-      const d = new Date(de.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      if (!de.date) return false;
+      const datePart = de.date.split('T')[0];
+      return datePart.startsWith(currentMonthKey);
     })
-    .reduce((acc, de) => acc + de.amount, 0);
+    .reduce((acc, de) => acc + (Number(de.amount) || 0), 0);
 
   const freeCash = monthlyIncome - monthlyFixedExpenses - monthlyDebtPayments - monthlyDailyExpenses;
   const debtToIncomeRatio = monthlyIncome > 0 ? totalDebt / (monthlyIncome * 12) : 0;

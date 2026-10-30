@@ -60,34 +60,29 @@ export const Dashboard = () => {
     loadData();
   }, []);
 
-  const totalDebtBalance = debts.reduce((acc, d) => acc + d.remainingAmount, 0);
-  const totalOriginalDebt = debts.reduce((acc, d) => acc + d.totalAmount, 0);
-  const monthlyIncome = incomes.reduce((acc, i) => {
-    switch (i.frequency) {
-      case 'monthly': return acc + i.amount;
-      case 'weekly': return acc + (i.amount * 4.33);
-      case 'biweekly': return acc + (i.amount * 2);
-      case 'annual': return acc + (i.amount / 12);
-      default: return acc + i.amount;
-    }
-  }, 0);
-  const monthlyExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-  const monthlyDebtPayments = debts.reduce((acc, d) => acc + d.installmentAmount, 0);
-  const freeCash = Math.max(0, monthlyIncome - monthlyExpenses - monthlyDebtPayments);
+  const totalDebtBalance = debts.reduce((acc, d) => acc + (d.isPaid ? 0 : (Number(d.remainingAmount) || 0)), 0);
+  const totalOriginalDebt = debts.reduce((acc, d) => acc + (Number(d.totalAmount) || 0), 0);
+  const monthlyIncome = incomes.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  const monthlyExpenses = expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const monthlyDebtPayments = debts.reduce((acc, d) => acc + (d.isPaid ? 0 : (Number(d.installmentAmount || d.remainingAmount) || 0)), 0);
+  const freeCash = monthlyIncome - monthlyExpenses - monthlyDebtPayments;
 
-  // Calculate current month daily expenses
+  // Calculate current month daily expenses using month string prefix to avoid timezone offsets
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const currentYearStr = String(now.getFullYear());
+  const currentMonthKey = `${currentYearStr}-${currentMonthStr}`;
+
   const monthlyDailyExpenses = dailyExpenses
     .filter(de => {
-      const d = new Date(de.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      if (!de.date) return false;
+      const datePart = de.date.split('T')[0];
+      return datePart.startsWith(currentMonthKey);
     })
-    .reduce((acc, de) => acc + de.amount, 0);
+    .reduce((acc, de) => acc + (Number(de.amount) || 0), 0);
 
-  // Real free cash - use actual daily expenses entered, not projection
-  const realFreeCash = Math.max(0, monthlyIncome - monthlyExpenses - monthlyDebtPayments - monthlyDailyExpenses);
+  // Real free cash - actual income minus actual expenses, debt payments and daily expenses
+  const realFreeCash = monthlyIncome - monthlyExpenses - monthlyDebtPayments - monthlyDailyExpenses;
   
   const overallProgress = totalOriginalDebt > 0 
     ? ((totalOriginalDebt - totalDebtBalance) / totalOriginalDebt) * 100 
@@ -99,7 +94,7 @@ export const Dashboard = () => {
   
   const getFinancialHealth = () => {
     if (debts.length === 0 && monthlyIncome === 0) return { label: 'Preencha seus dados', color: 'text-sp-text-subtle', bg: 'bg-slate-50' };
-    if (realFreeCash <= 0) return { label: 'Alerta: Saldo Negativo', color: 'text-sp-red-text', bg: 'bg-sp-red-bg' };
+    if (realFreeCash < 0) return { label: 'Alerta: Saldo Negativo', color: 'text-sp-red-text', bg: 'bg-sp-red-bg' };
     if (debtToIncomeRatio > 50) return { label: 'Endividamento Alto', color: 'text-orange-600', bg: 'bg-orange-50' };
     if (expenseToIncomeRatio > 80) return { label: 'Gastos Elevados', color: 'text-amber-600', bg: 'bg-amber-50' };
     if (overallProgress > 50) return { label: 'Bom Progresso', color: 'text-sp-mint', bg: 'bg-emerald-50' };
@@ -110,11 +105,12 @@ export const Dashboard = () => {
   // Daily expenses by category for current month
   const dailyByCategory = dailyExpenses
     .filter(de => {
-      const d = new Date(de.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      if (!de.date) return false;
+      const datePart = de.date.split('T')[0];
+      return datePart.startsWith(currentMonthKey);
     })
     .reduce((acc, de) => {
-      acc[de.category] = (acc[de.category] || 0) + de.amount;
+      acc[de.category] = (acc[de.category] || 0) + (Number(de.amount) || 0);
       return acc;
     }, {} as Record<string, number>);
 
@@ -133,44 +129,38 @@ export const Dashboard = () => {
       else if (i.recurrenceDay >= 15) weekIndex = 2;
       else if (i.recurrenceDay >= 8) weekIndex = 1;
     }
-    
-    let normalizedAmount = i.amount;
-    if (i.frequency === 'weekly') normalizedAmount = i.amount * 4.33 / 4;
-    else if (i.frequency === 'biweekly') normalizedAmount = i.amount * 2 / 2;
-    else if (i.frequency === 'annual') normalizedAmount = i.amount / 12;
-
-    cashFlowData[weekIndex].Entradas += normalizedAmount;
+    cashFlowData[weekIndex].Entradas += (Number(i.amount) || 0);
   });
 
   expenses.forEach(e => {
     let weekIndex = 0;
-    if (e.recurrenceDay) {
-      if (e.recurrenceDay >= 22) weekIndex = 3;
-      else if (e.recurrenceDay >= 15) weekIndex = 2;
-      else if (e.recurrenceDay >= 8) weekIndex = 1;
-    }
-    cashFlowData[weekIndex].Saídas += e.amount;
+    const dueDay = e.dueDate ? parseInt(e.dueDate.split('-')[2] || '0', 10) : (e.recurrenceDay || 0);
+    if (dueDay >= 22) weekIndex = 3;
+    else if (dueDay >= 15) weekIndex = 2;
+    else if (dueDay >= 8) weekIndex = 1;
+    cashFlowData[weekIndex].Saídas += (Number(e.amount) || 0);
   });
 
   debts.forEach(d => {
+    if (d.isPaid) return;
     let weekIndex = 0;
     if (d.dueDate) {
-      const day = new Date(d.dueDate).getDate();
-      if (!isNaN(day)) {
-        if (day >= 22) weekIndex = 3;
-        else if (day >= 15) weekIndex = 2;
-        else if (day >= 8) weekIndex = 1;
-      }
+      const parts = d.dueDate.split('-');
+      const dueDay = parseInt(parts[2] || '0', 10);
+      if (dueDay >= 22) weekIndex = 3;
+      else if (dueDay >= 15) weekIndex = 2;
+      else if (dueDay >= 8) weekIndex = 1;
     }
-    cashFlowData[weekIndex].Saídas += d.installmentAmount;
+    cashFlowData[weekIndex].Saídas += (Number(d.installmentAmount || d.remainingAmount) || 0);
   });
 
-  // Calculate real due dates — debts recur monthly, so find the next occurrence of their due day
+  // Calculate real due dates for active pending debts
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const activeVencimentos = debts.length > 0
     ? debts
+        .filter(d => !d.isPaid)
         .map((d) => {
           // Parse the stored dueDate to extract the day-of-month
           let daysUntil = 999;
@@ -271,19 +261,19 @@ export const Dashboard = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-slate-50 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Receita</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Receitas</p>
             <p className="text-lg font-black text-sp-mint">{formatCurrency(monthlyIncome)}</p>
           </div>
           <div className="text-center p-3 bg-slate-50 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Despesas Fixas</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Despesas</p>
             <p className="text-lg font-black text-sp-text-dark">{formatCurrency(monthlyExpenses)}</p>
           </div>
           <div className="text-center p-3 bg-slate-50 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Parcelas</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Parcelas Dívidas</p>
             <p className="text-lg font-black text-sp-red-text">{formatCurrency(monthlyDebtPayments)}</p>
           </div>
           <div className="text-center p-3 bg-slate-50 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Gastos Diarios</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-sp-text-subtle mb-1">Gastos Diários</p>
             <p className="text-lg font-black text-orange-600">{formatCurrency(monthlyDailyExpenses)}</p>
           </div>
         </div>
@@ -306,11 +296,11 @@ export const Dashboard = () => {
           </p>
         </div>
 
-        {realFreeCash <= 0 && monthlyIncome > 0 && (
+        {realFreeCash < 0 && monthlyIncome > 0 && (
           <div className="mt-3 p-3 bg-sp-red-bg border border-red-200 rounded-xl flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-sp-red-text shrink-0 mt-0.5" />
             <p className="text-xs font-bold text-sp-red-text leading-relaxed">
-              Seus gastos totais (fixas + dívidas + diários projetados) ultrapassam sua renda. Reduza despesas ou gere um Plano IA para otimizar.
+              Seus gastos totais (despesas + parcelas + diários) ultrapassam sua receita cadastrada. Reduza despesas ou gere um Plano IA para otimizar.
             </p>
           </div>
         )}

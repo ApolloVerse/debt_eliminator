@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Debt } from '../types';
 import { Title, BrutalButton, BrutalCard, BrutalLabel, BrutalInput, BrutalSelect } from '../components/BrutalUI';
-import { formatCurrency, getDebtBaseType } from '../lib/utils';
+import { formatCurrency, parseCurrency, getDebtBaseType } from '../lib/utils';
 import { CheckCircle2, Wallet, Info, Sparkles } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -57,7 +57,9 @@ export const Payments = () => {
     setIsSubmitting(true);
     
     try {
-      const newRemaining = Math.max(0, selectedDebt.remainingAmount - data.amountPaid);
+      const parsedAmount = parseCurrency(data.amountPaid);
+      const newRemaining = Math.max(0, selectedDebt.remainingAmount - parsedAmount);
+      const isNowPaid = newRemaining === 0;
       
       let newPaidInstallments = selectedDebt.paidInstallments;
       const baseType = getDebtBaseType(selectedDebt.type);
@@ -68,11 +70,15 @@ export const Payments = () => {
       }
       
       // Update debt
-      const { error: err1 } = await supabase.from('debts').update({
+      const updatePayload: any = {
         remainingAmount: newRemaining,
         paidInstallments: newPaidInstallments,
+        isPaid: isNowPaid ? true : selectedDebt.isPaid,
+        paymentDate: isNowPaid ? new Date().toISOString().split('T')[0] : selectedDebt.paymentDate,
         updatedAt: new Date().toISOString()
-      }).eq('id', selectedDebt.id);
+      };
+
+      const { error: err1 } = await supabase.from('debts').update(updatePayload).eq('id', selectedDebt.id);
 
       if (err1) throw err1;
 
@@ -80,7 +86,7 @@ export const Payments = () => {
       const { error: err2 } = await supabase.from('payment_logs').insert([{
         userId: user.id,
         debtId: selectedDebt.id,
-        amountPaid: Number(data.amountPaid),
+        amountPaid: parsedAmount,
         paymentDate: new Date().toISOString(),
         note: data.note,
         debtName: selectedDebt.name,
@@ -131,8 +137,8 @@ export const Payments = () => {
             <div>
               <BrutalLabel>Valor da Amortização (R$)</BrutalLabel>
               <BrutalInput 
-                type="number" 
-                step="0.01" 
+                type="text" 
+                inputMode="decimal" 
                 {...register('amountPaid', { required: true })} 
                 placeholder="R$ 0,00"
               />
