@@ -242,7 +242,7 @@ export const Goals = () => {
   };
 
   const getProgressPercentage = (current: number, target: number) => {
-    return Math.min((current / target) * 100, 100);
+    return target > 0 ? Math.min((current / target) * 100, 100) : 0;
   };
 
   // Sort goals: incomplete first, then by priority (high > medium > low), then by deadline
@@ -298,37 +298,43 @@ export const Goals = () => {
       </div>
 
       {/* Overall Progress Card */}
-      <BrutalCard highlight>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-sp-purple text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
+        {/* Abstract vector dots background */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-8 -mb-8 pointer-events-none" />
+
+        <div className="flex items-center justify-between mb-5 relative z-10">
           <div>
-            <BrutalLabel>PROGRESSO GERAL</BrutalLabel>
-            <h3 className="text-2xl font-black text-sp-text-dark mt-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/80 mb-1">
+              PROGRESSO GERAL
+            </p>
+            <h3 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
               {formatCurrency(totalSaved)}
             </h3>
-            <p className="text-xs text-sp-text-sec">
+            <p className="text-xs font-medium text-white/70 mt-1">
               de {formatCurrency(totalTarget)} total planejado
             </p>
           </div>
-          <div className="w-16 h-16 bg-sp-purple-light text-sp-purple rounded-2xl flex items-center justify-center">
-            <Target className="w-8 h-8" />
+          <div className="w-16 h-16 bg-white/15 border border-white/20 text-white rounded-2xl flex items-center justify-center backdrop-blur-xs shadow-inner">
+            <Target className="w-8 h-8 text-white" />
           </div>
         </div>
 
-        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden relative z-10">
           <div 
-            className="h-full bg-sp-purple rounded-full transition-all duration-500"
+            className="h-full bg-sp-mint rounded-full transition-all duration-500"
             style={{ width: `${getProgressPercentage(totalSaved, totalTarget)}%` }}
           />
         </div>
-        <div className="flex justify-between mt-2">
-          <span className="text-[10px] font-bold text-sp-text-subtle uppercase">
+        <div className="flex justify-between mt-2.5 relative z-10">
+          <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider">
             {getProgressPercentage(totalSaved, totalTarget).toFixed(0)}% concluído
           </span>
-          <span className="text-[10px] font-bold text-sp-text-subtle uppercase">
+          <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider">
             {activeGoals.length} metas ativas
           </span>
         </div>
-      </BrutalCard>
+      </div>
 
       {/* Active Goals */}
       <div className="space-y-3">

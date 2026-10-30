@@ -358,8 +358,8 @@ export const Dashboard = () => {
             </p>
             <p className="text-2xl font-black text-sp-mint">
               {dailyExpenses.filter(de => {
-                const d = new Date(de.date);
-                return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                if (!de.date) return false;
+                return de.date.split('T')[0].startsWith(currentMonthKey);
               }).length}
             </p>
           </div>

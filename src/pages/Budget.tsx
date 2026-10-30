@@ -103,7 +103,7 @@ export const Budget = () => {
 
     // Merge budgets with spending
     const categorySpending: CategorySpending[] = CATEGORIES.map(cat => {
-      const budget = budgetsData?.find(b => b.category === cat.value);
+      const budget = (budgetsData as Budget[])?.find((b: any) => b.category === cat.value);
       const spent = spendingByCategory[cat.value] || 0;
       const limit = budget?.monthlyLimit || 0;
       const percentage = limit > 0 ? (spent / limit) * 100 : 0;
@@ -255,24 +255,30 @@ export const Budget = () => {
       </div>
 
       {/* Overall Budget Card */}
-      <BrutalCard highlight>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-sp-purple text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
+        {/* Abstract vector dots background */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full -ml-8 -mb-8 pointer-events-none" />
+
+        <div className="flex items-center justify-between mb-5 relative z-10">
           <div>
-            <BrutalLabel>RESUMO DO MÊS</BrutalLabel>
-            <h3 className="text-2xl font-black text-sp-text-dark mt-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-white/80 mb-1">
+              RESUMO DO MÊS
+            </p>
+            <h3 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
               {formatCurrency(totalSpent)}
             </h3>
-            <p className="text-xs text-sp-text-sec">
+            <p className="text-xs font-medium text-white/70 mt-1">
               de {formatCurrency(totalBudget)} planejado
             </p>
           </div>
           <div className={cn(
-            "w-16 h-16 rounded-2xl flex items-center justify-center",
+            "w-16 h-16 rounded-2xl flex items-center justify-center border backdrop-blur-xs shadow-inner",
             overallPercentage > 100 
-              ? "bg-sp-red-bg text-sp-red-text" 
+              ? "bg-red-500/20 border-red-300/30 text-white" 
               : overallPercentage > 80 
-                ? "bg-yellow-100 text-yellow-600"
-                : "bg-sp-mint-light text-sp-mint"
+                ? "bg-yellow-500/20 border-yellow-300/30 text-yellow-200"
+                : "bg-emerald-500/20 border-emerald-300/30 text-emerald-200"
           )}>
             {overallPercentage > 100 ? (
               <AlertTriangle className="w-8 h-8" />
@@ -283,28 +289,28 @@ export const Budget = () => {
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden relative z-10">
           <div 
             className={cn(
               "h-full rounded-full transition-all duration-500",
               overallPercentage > 100 
-                ? "bg-sp-red-text" 
+                ? "bg-red-400" 
                 : overallPercentage > 80 
-                  ? "bg-yellow-500"
-                  : "bg-sp-purple"
+                  ? "bg-yellow-400"
+                  : "bg-sp-mint"
             )}
             style={{ width: `${Math.min(overallPercentage, 100)}%` }}
           />
         </div>
-        <div className="flex justify-between mt-2">
-          <span className="text-[10px] font-bold text-sp-text-subtle uppercase">
+        <div className="flex justify-between mt-2.5 relative z-10">
+          <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider">
             {overallPercentage.toFixed(0)}% utilizado
           </span>
-          <span className="text-[10px] font-bold text-sp-text-subtle uppercase">
+          <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider">
             {formatCurrency(totalBudget - totalSpent)} restante
           </span>
         </div>
-      </BrutalCard>
+      </div>
 
       {/* Category Breakdown */}
       <div className="space-y-3">
