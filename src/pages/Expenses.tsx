@@ -100,8 +100,8 @@ export const extractExpenseMeta = (expense: Expense) => {
 
 export const cleanBaseName = (name: string) => {
   return (name || '')
-    .replace(/\s*\(\d+\/\d+\)$/, '')
-    .replace(/\s*-\s*Parcela\s*\d+(\/\d+)?.*$/i, '')
+    .replace(/\s*\(\d+(\s*\/\s*\d+)?\)$/, '')
+    .replace(/\s*-\s*Parcela\s*\d+(\s*\/\s*\d+)?.*$/i, '')
     .replace(/\s*-\s*Fatura\s+.*$/i, '')
     .trim();
 };
@@ -730,23 +730,23 @@ export const Expenses = () => {
       <div 
         key={card.key}
         className={cn(
-          "border rounded-3xl p-5 sm:p-6 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
+          "border rounded-2xl p-4 transition-all duration-200 relative group flex flex-col justify-between shadow-2xs hover:shadow-sm",
           !hasUnpaid ? "bg-emerald-50/20 border-emerald-200/80" : "bg-white border-slate-200 hover:border-purple-300"
         )}
       >
         <div>
           {/* Header Row */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
-                <CreditCard className="w-3 h-3" />
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
+                <CreditCard className="w-2.5 h-2.5" />
                 {bankInfo.name}
               </span>
-              <span className="text-[10px] font-extrabold text-sp-text-subtle uppercase">
+              <span className="text-[9px] font-extrabold text-sp-text-subtle uppercase">
                 {card.category === "overdraft" ? "Cheque Especial" : "Fatura Cartão"}
               </span>
               {card.interestRate > 0 && (
-                <span className="text-[10px] font-black text-purple-700 bg-purple-100/70 border border-purple-200/60 px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                <span className="text-[9px] font-black text-purple-700 bg-purple-100/70 border border-purple-200/60 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <Percent className="w-2.5 h-2.5" />
                   {card.interestRate}% a.m.
                 </span>
@@ -755,71 +755,73 @@ export const Expenses = () => {
 
             <div className="flex items-center gap-1">
               {!hasUnpaid ? (
-                <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
                   <CheckCircle2 className="w-2.5 h-2.5" /> Pagas
                 </span>
               ) : (
-                <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
                   {card.unpaidInvoices.length} {card.unpaidInvoices.length === 1 ? 'A Pagar' : 'A Pagar'}
                 </span>
               )}
               {currentInv && (
                 <button onClick={() => openEdit(currentInv)} className="p-1 text-sp-text-subtle hover:text-sp-purple rounded cursor-pointer" title="Editar Cartão">
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3 h-3" />
                 </button>
               )}
               <button onClick={() => deleteCardGroup(card)} className="p-1 text-sp-text-subtle hover:text-sp-red-text rounded cursor-pointer" title="Excluir Cartão e Faturas">
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-3 h-3" />
               </button>
             </div>
           </div>
 
           {/* Title */}
-          <h3 className={cn("font-black text-lg truncate", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
+          <h3 className={cn("font-black text-base truncate mb-2", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
             {card.name}
           </h3>
 
-          {/* Current / Next Invoice Box */}
+          {/* Current / Next Invoice Box - Compact & balanced */}
           {currentInv && (
-            <div className="mt-3.5 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <div className="flex justify-between items-baseline">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex justify-between items-center text-[10px]">
+                <span className="font-black uppercase tracking-wider text-rose-600">
                   {isCurrentPaid ? "Fatura Paga" : "Saldo Negativo / Fatura"}
                 </span>
                 {currentInv.dueDate && (
-                  <span className="text-[11px] font-semibold text-sp-text-sec flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
+                  <span className="font-semibold text-sp-text-sec flex items-center gap-1 text-[10px]">
+                    <Calendar className="w-2.5 h-2.5 text-slate-400" />
                     Venc: {new Date(currentInv.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                   </span>
                 )}
               </div>
-              <p className={cn("text-2xl sm:text-3xl font-black tracking-tight mt-1", isCurrentPaid ? "text-emerald-700" : "text-rose-600")}>
-                {formatCurrency(currentInv.amount)}
-              </p>
-              
-              <button 
-                onClick={() => togglePaid(currentInv)} 
-                disabled={togglingId === currentInv.id}
-                className={cn(
-                  "mt-3 w-full text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer",
-                  isCurrentPaid 
-                    ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200 shadow-xs" 
-                    : "bg-sp-purple text-white hover:bg-sp-purple-hover shadow-sm shadow-sp-purple/20"
-                )}
-              >
-                {togglingId === currentInv.id ? "..." : isCurrentPaid ? (<><Clock className="w-3.5 h-3.5" /> Reabrir Fatura</>) : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Fatura</>)}
-              </button>
+
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className={cn("text-xl sm:text-2xl font-black tracking-tight", isCurrentPaid ? "text-emerald-700" : "text-rose-600")}>
+                  {formatCurrency(currentInv.amount)}
+                </p>
+                <button 
+                  onClick={() => togglePaid(currentInv)} 
+                  disabled={togglingId === currentInv.id}
+                  className={cn(
+                    "text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer shrink-0 shadow-2xs",
+                    isCurrentPaid 
+                      ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200" 
+                      : "bg-sp-purple text-white hover:bg-sp-purple-hover"
+                  )}
+                >
+                  {togglingId === currentInv.id ? "..." : isCurrentPaid ? (<><Clock className="w-3 h-3" /> Reabrir</>) : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Fatura</>)}
+                </button>
+              </div>
             </div>
           )}
 
           {/* Card Limit Usage Gauge */}
           {card.cardLimit > 0 && (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-xs font-bold">
+            <div className="mt-2.5 space-y-1">
+              <div className="flex justify-between text-[11px] font-bold">
                 <span className="text-sp-text-sec">Limite: {formatCurrency(card.cardLimit)}</span>
                 <span className="text-emerald-700">Disponível: {formatCurrency(card.availableLimit)}</span>
               </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                 <div 
                   className={cn(
                     "h-full transition-all duration-500", 
@@ -828,7 +830,7 @@ export const Expenses = () => {
                   style={{ width: `${card.usagePct}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
+              <div className="flex justify-between text-[9px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
                 <span>Comprometido: {card.usagePct}% ({formatCurrency(card.totalCommitted)})</span>
                 <span>{card.availableLimit > 0 ? "Saldo Restante Positivo" : "Limite Esgotado"}</span>
               </div>
@@ -836,16 +838,16 @@ export const Expenses = () => {
           )}
 
           {/* Invoices List inside the same card (Próximas Faturas) */}
-          <div className="mt-4 pt-3 border-t border-slate-100">
+          <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <button 
                 type="button"
                 onClick={() => toggleCardExpanded(card.key)}
-                className="flex items-center gap-1 text-xs font-extrabold text-slate-800 hover:text-sp-purple transition-all cursor-pointer"
+                className="flex items-center gap-1 text-[11px] font-extrabold text-slate-800 hover:text-sp-purple transition-all cursor-pointer"
               >
-                {isExpanded ? <ChevronUp className="w-4 h-4 text-sp-purple" /> : <ChevronDown className="w-4 h-4 text-sp-purple" />}
+                {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-sp-purple" /> : <ChevronDown className="w-3.5 h-3.5 text-sp-purple" />}
                 <span>Próximas Faturas</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-sp-purple font-black">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 text-sp-purple font-black">
                   {card.invoices.length}
                 </span>
               </button>
@@ -853,54 +855,54 @@ export const Expenses = () => {
               <button
                 type="button"
                 onClick={() => openAddInvoiceForCard(card)}
-                className="text-[11px] font-bold text-sp-purple hover:bg-purple-50 px-2 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                className="text-[10px] font-bold text-sp-purple hover:bg-purple-50 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <Plus className="w-3 h-3 stroke-[2.5]" />
                 Nova Fatura
               </button>
             </div>
 
             {/* Invoices Accordion List */}
             {isExpanded && (
-              <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="mt-2 space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {card.invoices.map((inv, idx) => {
                   const invPaid = !!inv.isPaid;
                   return (
                     <div 
                       key={inv.id}
                       className={cn(
-                        "p-2.5 rounded-xl border flex items-center justify-between text-xs transition-all",
+                        "p-2 rounded-lg border flex items-center justify-between text-xs transition-all",
                         invPaid ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-200"
                       )}
                     >
                       <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-sp-text-subtle w-5 text-center">
+                        <span className="text-[9px] font-bold text-sp-text-subtle w-4 text-center">
                           #{idx + 1}
                         </span>
                         <div>
-                          <p className={cn("font-bold", invPaid ? "line-through text-slate-500" : "text-slate-900")}>
+                          <p className={cn("font-bold text-xs", invPaid ? "line-through text-slate-500" : "text-slate-900")}>
                             {formatCurrency(inv.amount)}
                           </p>
-                          <p className="text-[10px] text-sp-text-sec flex items-center gap-1">
+                          <p className="text-[9px] text-sp-text-sec flex items-center gap-1">
                             <Calendar className="w-2.5 h-2.5" />
                             {inv.dueDate ? new Date(inv.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" }) : "Sem data"}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => togglePaid(inv)}
                           disabled={togglingId === inv.id}
                           className={cn(
-                            "px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer",
+                            "px-2 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer",
                             invPaid 
                               ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" 
                               : "bg-rose-100 text-rose-800 hover:bg-rose-200"
                           )}
                         >
-                          <CheckCircle2 className="w-3 h-3" />
+                          <CheckCircle2 className="w-2.5 h-2.5" />
                           {invPaid ? "Paga" : "Pagar"}
                         </button>
                         <button 
@@ -940,23 +942,23 @@ export const Expenses = () => {
       <div 
         key={loan.key}
         className={cn(
-          "border rounded-3xl p-5 sm:p-6 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
+          "border rounded-2xl p-4 transition-all duration-200 relative group flex flex-col justify-between shadow-2xs hover:shadow-sm",
           !hasUnpaid ? "bg-emerald-50/20 border-emerald-200/80" : "bg-white border-slate-200 hover:border-indigo-300"
         )}
       >
         <div>
           {/* Header Row */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
-                <Landmark className="w-3 h-3" />
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
+                <Landmark className="w-2.5 h-2.5" />
                 {bankInfo.name}
               </span>
-              <span className="text-[10px] font-extrabold text-sp-text-subtle uppercase">
+              <span className="text-[9px] font-extrabold text-sp-text-subtle uppercase">
                 Empréstimo
               </span>
               {loan.interestRate > 0 && (
-                <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/70 border border-indigo-200/60 px-2 py-0.5 rounded-md flex items-center gap-0.5">
+                <span className="text-[9px] font-black text-indigo-700 bg-indigo-100/70 border border-indigo-200/60 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <Percent className="w-2.5 h-2.5" />
                   {loan.interestRate}% a.m.
                 </span>
@@ -965,87 +967,89 @@ export const Expenses = () => {
 
             <div className="flex items-center gap-1">
               {!hasUnpaid ? (
-                <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
                   <CheckCircle2 className="w-2.5 h-2.5" /> Quitado
                 </span>
               ) : (
-                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[8px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
                   {loan.paidInstallments.length}/{loan.installments.length} Pagas
                 </span>
               )}
               {nextInst && (
                 <button onClick={() => openEdit(nextInst)} className="p-1 text-sp-text-subtle hover:text-sp-purple rounded cursor-pointer" title="Editar Empréstimo">
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3 h-3" />
                 </button>
               )}
               <button onClick={() => deleteLoanGroup(loan)} className="p-1 text-sp-text-subtle hover:text-sp-red-text rounded cursor-pointer" title="Excluir Empréstimo e Parcelas">
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-3 h-3" />
               </button>
             </div>
           </div>
 
           {/* Title */}
-          <h3 className={cn("font-black text-lg truncate", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
+          <h3 className={cn("font-black text-base truncate mb-2", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
             {loan.name}
           </h3>
 
-          {/* Next Installment Box */}
+          {/* Next Installment Box - Compact & balanced */}
           {nextInst && (
-            <div className="mt-3.5 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
-              <div className="flex justify-between items-baseline">
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700">
+            <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+              <div className="flex justify-between items-center text-[10px]">
+                <span className="font-black uppercase tracking-wider text-indigo-700">
                   Parcela Atual ({loan.paidInstallments.length + 1}/{loan.installments.length})
                 </span>
                 {nextInst.dueDate && (
-                  <span className="text-[11px] font-semibold text-sp-text-sec flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
+                  <span className="font-semibold text-sp-text-sec flex items-center gap-1 text-[10px]">
+                    <Calendar className="w-2.5 h-2.5 text-slate-400" />
                     Venc: {new Date(nextInst.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                   </span>
                 )}
               </div>
-              <p className="text-2xl sm:text-3xl font-black text-indigo-950 tracking-tight mt-1">
-                {formatCurrency(nextInst.amount || loan.installmentAmount)}
-              </p>
-              
-              <button 
-                onClick={() => togglePaid(nextInst)} 
-                disabled={togglingId === nextInst.id}
-                className="mt-3 w-full text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-600/20"
-              >
-                {togglingId === nextInst.id ? "..." : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Parcela ({loan.paidInstallments.length + 1}/{loan.installments.length})</>)}
-              </button>
+
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className="text-xl sm:text-2xl font-black text-indigo-950 tracking-tight">
+                  {formatCurrency(nextInst.amount || loan.installmentAmount)}
+                </p>
+                <button 
+                  onClick={() => togglePaid(nextInst)} 
+                  disabled={togglingId === nextInst.id}
+                  className="text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer shrink-0 shadow-2xs bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  {togglingId === nextInst.id ? "..." : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Parcela</>)}
+                </button>
+              </div>
             </div>
           )}
 
           {/* Loan Repayment Progress */}
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-xs font-bold">
+          <div className="mt-2.5 space-y-1">
+            <div className="flex justify-between text-[11px] font-bold">
               <span className="text-sp-text-sec">Total: {formatCurrency(loan.totalLoanAmount)}</span>
               <span className="text-rose-700">Saldo Devedor: {formatCurrency(loan.totalRemaining)}</span>
             </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${loan.progressPct}%` }}
               />
             </div>
-            <div className="flex justify-between text-[10px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
-              <span>{loan.unpaidInstallments.length} parcelas restantes</span>
+            <div className="flex justify-between text-[9px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
+              <span>{loan.unpaidInstallments.length} restantes</span>
               <span>{loan.progressPct}% Quitado ({formatCurrency(loan.totalPaid)})</span>
             </div>
           </div>
 
           {/* Installments List inside the same card */}
-          <div className="mt-4 pt-3 border-t border-slate-100">
+          <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <button 
                 type="button"
                 onClick={() => toggleLoanExpanded(loan.key)}
-                className="flex items-center gap-1 text-xs font-extrabold text-slate-800 hover:text-indigo-600 transition-all cursor-pointer"
+                className="flex items-center gap-1 text-[11px] font-extrabold text-slate-800 hover:text-indigo-600 transition-all cursor-pointer"
               >
-                {isExpanded ? <ChevronUp className="w-4 h-4 text-indigo-600" /> : <ChevronDown className="w-4 h-4 text-indigo-600" />}
+                {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-indigo-600" /> : <ChevronDown className="w-3.5 h-3.5 text-indigo-600" />}
                 <span>Todas as Parcelas</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-black">
                   {loan.installments.length}
                 </span>
               </button>
@@ -1053,54 +1057,54 @@ export const Expenses = () => {
               <button
                 type="button"
                 onClick={() => openAddInstallmentForLoan(loan)}
-                className="text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <Plus className="w-3 h-3 stroke-[2.5]" />
                 Nova Parcela
               </button>
             </div>
 
             {/* Installments Accordion List */}
             {isExpanded && (
-              <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="mt-2 space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {loan.installments.map((inst, idx) => {
                   const instPaid = !!inst.isPaid;
                   return (
                     <div 
                       key={inst.id}
                       className={cn(
-                        "p-2.5 rounded-xl border flex items-center justify-between text-xs transition-all",
+                        "p-2 rounded-lg border flex items-center justify-between text-xs transition-all",
                         instPaid ? "bg-emerald-50/40 border-emerald-100" : "bg-slate-50 border-slate-200"
                       )}
                     >
                       <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-sp-text-subtle w-6 text-center">
+                        <span className="text-[9px] font-bold text-sp-text-subtle w-5 text-center">
                           {idx + 1}ª
                         </span>
                         <div>
-                          <p className={cn("font-bold", instPaid ? "line-through text-slate-500" : "text-slate-900")}>
+                          <p className={cn("font-bold text-xs", instPaid ? "line-through text-slate-500" : "text-slate-900")}>
                             {formatCurrency(inst.amount)}
                           </p>
-                          <p className="text-[10px] text-sp-text-sec flex items-center gap-1">
+                          <p className="text-[9px] text-sp-text-sec flex items-center gap-1">
                             <Calendar className="w-2.5 h-2.5" />
                             {inst.dueDate ? new Date(inst.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" }) : "Sem data"}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => togglePaid(inst)}
                           disabled={togglingId === inst.id}
                           className={cn(
-                            "px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer",
+                            "px-2 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer",
                             instPaid 
                               ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" 
                               : "bg-indigo-100 text-indigo-800 hover:bg-indigo-200"
                           )}
                         >
-                          <CheckCircle2 className="w-3 h-3" />
+                          <CheckCircle2 className="w-2.5 h-2.5" />
                           {instPaid ? "Paga" : "Pagar"}
                         </button>
                         <button 
