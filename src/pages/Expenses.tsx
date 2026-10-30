@@ -5,7 +5,7 @@ import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/Bru
 import { Modal } from "../components/Modal";
 import { CategorySelect } from "../components/CategorySelect";
 import { formatCurrency, parseCurrency, addMonthsToDate, cn } from "../lib/utils";
-import { Plus, Pencil, Trash2, ShoppingCart, Home, Car, Heart, GraduationCap, Zap, Tv, MoreHorizontal, Calendar, CheckCircle2, Clock, TrendingDown, Repeat, CreditCard, Landmark, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, ShoppingCart, Home, Car, Heart, GraduationCap, Zap, Tv, MoreHorizontal, Calendar, CheckCircle2, Clock, TrendingDown, Repeat, CreditCard, Landmark, AlertTriangle, Receipt } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -90,7 +90,8 @@ export const Expenses = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tab, setTab] = useState<"all" | "cards" | "pending" | "paid" | "future">("all");
+  const [tab, setTab] = useState<"normal" | "cards" | "pending" | "paid" | "future" | "all">("normal");
+  const [selectedBank, setSelectedBank] = useState<string>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, watch, control, setValue } = useForm<FormData>({
@@ -242,30 +243,250 @@ export const Expenses = () => {
   const isCardExpense = (e: Expense) => e.category === 'credit_card' || e.category === 'overdraft';
   const isFuture = (e: Expense) => !!(e.dueDate && e.dueDate > today && !e.isPaid);
 
+  const normalList = expenses.filter(e => !isCardExpense(e));
   const cardsList = expenses.filter(isCardExpense);
+
   const totalCardsNegative = cardsList.filter(e => !e.isPaid).reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
   const totalCardsLimit = cardsList.reduce((acc, e) => acc + (Number(e.cardLimit) || 0), 0);
   const totalCardsAvailable = Math.max(0, totalCardsLimit - totalCardsNegative);
-
-  const filtered = expenses.filter(e => {
-    if (tab === "cards") return isCardExpense(e);
-    if (tab === "paid") return !!e.isPaid;
-    if (tab === "pending") return !e.isPaid && !isFuture(e);
-    if (tab === "future") return isFuture(e);
-    return true;
-  });
 
   const totalPending = expenses.reduce((acc, e) => acc + (e.isPaid ? 0 : e.amount), 0);
   const totalPaid = expenses.reduce((acc, e) => acc + (e.isPaid ? e.amount : 0), 0);
   const countFuture = expenses.filter(e => isFuture(e)).length;
 
   const allTabs = [
-    { id: "all" as const, label: "Todas", count: expenses.length },
-    { id: "cards" as const, label: "💳 Cartões & Limites", count: cardsList.length },
+    { id: "normal" as const, label: "📋 Despesas Normais", count: normalList.length },
+    { id: "cards" as const, label: "💳 Somente Cartões", count: cardsList.length },
     { id: "pending" as const, label: "A Pagar", count: expenses.filter(e => !e.isPaid && !isFuture(e)).length },
     { id: "paid" as const, label: "Pagas", count: expenses.filter(e => !!e.isPaid).length },
     { id: "future" as const, label: "Futuras", count: countFuture },
+    { id: "all" as const, label: "Todas", count: expenses.length },
   ];
+
+  // Filtering for cards:
+  const getFilteredCards = () => {
+    let list = cardsList;
+    if (tab === "normal") return [];
+    if (tab === "cards") {
+      if (selectedBank !== "all") {
+        list = list.filter(c => (c.bank || "outro").toLowerCase() === selectedBank);
+      }
+      return list;
+    }
+    if (tab === "paid") return list.filter(e => !!e.isPaid);
+    if (tab === "pending") return list.filter(e => !e.isPaid && !isFuture(e));
+    if (tab === "future") return list.filter(e => isFuture(e));
+    return list;
+  };
+
+  // Filtering for normal expenses:
+  const getFilteredNormal = () => {
+    let list = normalList;
+    if (tab === "cards") return [];
+    if (tab === "normal") return list;
+    if (tab === "paid") return list.filter(e => !!e.isPaid);
+    if (tab === "pending") return list.filter(e => !e.isPaid && !isFuture(e));
+    if (tab === "future") return list.filter(e => isFuture(e));
+    return list;
+  };
+
+  const displayedCards = getFilteredCards();
+  const displayedNormal = getFilteredNormal();
+
+  const renderCardItem = (expense: Expense) => {
+    const isPaid = !!expense.isPaid;
+    const bankInfo = getBankInfo(expense.bank);
+    const isToggling = togglingId === expense.id;
+    const limit = Number(expense.cardLimit) || 0;
+    const used = Number(expense.amount) || 0;
+    const available = Math.max(0, limit - used);
+    const usagePct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+
+    return (
+      <div 
+        key={expense.id}
+        className={cn(
+          "border rounded-3xl p-4 sm:p-5 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
+          isPaid ? "bg-emerald-50/20 border-emerald-200/80" : "bg-white border-slate-200 hover:border-purple-300"
+        )}
+      >
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className={cn("text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
+                <CreditCard className="w-3 h-3" />
+                {bankInfo.name}
+              </span>
+              <span className="text-[10px] font-extrabold text-sp-text-subtle uppercase">
+                {expense.category === "overdraft" ? "Cheque Especial" : "Fatura Cartão"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {isPaid ? (
+                <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> Paga
+                </span>
+              ) : (
+                <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                  A Pagar
+                </span>
+              )}
+              <button onClick={() => openEdit(expense)} className="p-1 text-sp-text-subtle hover:text-sp-purple rounded cursor-pointer" title="Editar">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => deleteExpense(expense.id)} className="p-1 text-sp-text-subtle hover:text-sp-red-text rounded cursor-pointer" title="Excluir">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <h3 className={cn("font-black text-base truncate", isPaid ? "text-emerald-950 line-through opacity-70" : "text-slate-900")}>
+            {expense.name}
+          </h3>
+
+          <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="flex justify-between items-baseline">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
+                {isPaid ? "Valor Pago" : "Saldo Negativo / Fatura"}
+              </span>
+              {expense.dueDate && (
+                <span className="text-[11px] font-semibold text-sp-text-sec flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  Venc: {new Date(expense.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                </span>
+              )}
+            </div>
+            <p className={cn("text-2xl font-black tracking-tight mt-0.5", isPaid ? "text-emerald-700" : "text-rose-600")}>
+              {formatCurrency(expense.amount)}
+            </p>
+          </div>
+
+          {limit > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex justify-between text-xs font-bold">
+                <span className="text-sp-text-sec">Limite: {formatCurrency(limit)}</span>
+                <span className="text-emerald-700">Disponível: {formatCurrency(available)}</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div 
+                  className={cn("h-full transition-all duration-500", usagePct > 80 ? "bg-rose-500" : usagePct > 50 ? "bg-amber-500" : "bg-emerald-500")}
+                  style={{ width: `${usagePct}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
+                <span>Comprometido: {usagePct}%</span>
+                <span>{available > 0 ? "Saldo Restante Positivo" : "Limite Esgotado"}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <button 
+          onClick={() => togglePaid(expense)} 
+          disabled={isToggling}
+          className={cn(
+            "mt-4 w-full text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer",
+            isPaid 
+              ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200 shadow-xs" 
+              : "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+          )}
+        >
+          {isToggling ? "..." : isPaid ? (<><Clock className="w-3.5 h-3.5" /> Reabrir Fatura</>) : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Fatura</>)}
+        </button>
+      </div>
+    );
+  };
+
+  const renderNormalItem = (expense: Expense) => {
+    const isPaid = !!expense.isPaid;
+    const isFut = isFuture(expense);
+    const IconComp = catIcon(expense.category);
+    const bgClass = isPaid ? "bg-emerald-100 text-emerald-600" : catColor(expense.category);
+    const isToggling = togglingId === expense.id;
+
+    return (
+      <div 
+        key={expense.id} 
+        className={cn(
+          "border rounded-2xl p-3.5 sm:p-4 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
+          isPaid ? "bg-emerald-50/30 border-emerald-200/80" : isFut ? "bg-blue-50/25 border-blue-200/80" : "bg-white border-sp-border"
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0", bgClass)}>
+              <IconComp className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={cn("font-bold text-sm leading-tight truncate", isPaid ? "text-emerald-900 line-through opacity-70" : "text-sp-text-dark")}>
+                {expense.name}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px] uppercase font-bold text-sp-text-subtle tracking-wider">
+                  {catLabel(expense.category)}
+                </span>
+                {expense.type && (
+                  <>
+                    <span className="text-sp-text-subtle text-[9px]">•</span>
+                    <span className="text-[10px] text-sp-text-subtle font-medium">
+                      {expense.type === 'fixed' ? 'Fixo' : 'Variável'}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {isFut && !isPaid && (
+              <span className="bg-blue-500/10 text-blue-600 border border-blue-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                Futura
+              </span>
+            )}
+            {isPaid && (
+              <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                <CheckCircle2 className="w-2.5 h-2.5" /> Paga
+              </span>
+            )}
+            <div className="flex items-center opacity-80 group-hover:opacity-100 transition-opacity ml-1">
+              <button onClick={() => openEdit(expense)} className="p-1 text-sp-text-subtle hover:text-sp-purple hover:bg-slate-100 rounded cursor-pointer" title="Editar">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => deleteExpense(expense.id)} className="p-1 text-sp-text-subtle hover:text-sp-red-text hover:bg-sp-red-bg rounded cursor-pointer" title="Excluir">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-baseline justify-between gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-sp-dark-border/40">
+          <span className={cn("text-lg sm:text-xl font-black tracking-tight", isPaid ? "text-emerald-700" : "text-indigo-950 dark:text-white")}>
+            {formatCurrency(expense.amount)}
+          </span>
+          {expense.dueDate && (
+            <span className={cn("text-[11px] font-semibold flex items-center gap-1", isFut ? "text-blue-600" : isPaid ? "text-emerald-600" : "text-sp-text-subtle")}>
+              <Calendar className="w-3 h-3" />
+              {new Date(expense.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+            </span>
+          )}
+        </div>
+
+        <button 
+          onClick={() => togglePaid(expense)} 
+          disabled={isToggling}
+          className={cn(
+            "mt-2 w-full text-[11px] font-bold py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer",
+            isPaid 
+              ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200 shadow-xs" 
+              : "bg-sp-purple/8 text-sp-purple hover:bg-sp-purple hover:text-white border border-sp-purple/20 shadow-xs"
+          )}
+        >
+          {isToggling ? "..." : isPaid ? (<><Clock className="w-3 h-3" /> Marcar Pendente</>) : (<><CheckCircle2 className="w-3 h-3" /> Marcar como Paga</>)}
+        </button>
+      </div>
+    );
+  };
 
   const watchedType = watch("type");
   const watchedRepeatMonths = Number(watch("repeatMonths")) || 1;
@@ -367,224 +588,71 @@ export const Expenses = () => {
         ))}
       </div>
 
-      {/* EXPENSES & CARDS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filtered.map(expense => {
-          const isPaid = !!expense.isPaid;
-          const isFut = isFuture(expense);
-          const isCard = isCardExpense(expense);
-          const bankInfo = getBankInfo(expense.bank);
-          const isToggling = togglingId === expense.id;
-
-          const limit = Number(expense.cardLimit) || 0;
-          const used = Number(expense.amount) || 0;
-          const available = Math.max(0, limit - used);
-          const usagePct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-
-          // ── SPECIAL CARD RENDERING FOR CREDIT CARDS & OVERDRAFT ──
-          if (isCard) {
-            return (
-              <div 
-                key={expense.id}
+      {/* ── CARTÕES SECTION (only shown when tab === "cards") ── */}
+      {tab === "cards" && (
+        <>
+          {/* Bank filter chips */}
+          {cardsList.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-0.5">
+              <button
+                onClick={() => setSelectedBank("all")}
                 className={cn(
-                  "border rounded-3xl p-4 sm:p-5 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
-                  isPaid ? "bg-emerald-50/20 border-emerald-200/80" : "bg-white border-slate-200 hover:border-purple-300"
+                  "text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border transition-all cursor-pointer shrink-0",
+                  selectedBank === "all" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-sp-text-sec border-sp-border hover:border-slate-400"
                 )}
               >
-                {/* Top header: Bank badge + status */}
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-2xs", bankInfo.badge)}>
-                        <CreditCard className="w-3 h-3" />
-                        {bankInfo.name}
-                      </span>
-                      <span className="text-[10px] font-extrabold text-sp-text-subtle uppercase">
-                        {expense.category === "overdraft" ? "Cheque Especial" : "Fatura Cartão"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {isPaid ? (
-                        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Paga
-                        </span>
-                      ) : (
-                        <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                          A Pagar
-                        </span>
-                      )}
-                      <button onClick={() => openEdit(expense)} className="p-1 text-sp-text-subtle hover:text-sp-purple rounded" title="Editar">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => deleteExpense(expense.id)} className="p-1 text-sp-text-subtle hover:text-sp-red-text rounded" title="Excluir">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card Name */}
-                  <h3 className={cn("font-black text-base truncate", isPaid ? "text-emerald-950 line-through opacity-70" : "text-slate-900")}>
-                    {expense.name}
-                  </h3>
-
-                  {/* Fatura / Saldo Negativo Big Display */}
-                  <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
-                        {isPaid ? "Valor Pago" : "Saldo Negativo / Fatura"}
-                      </span>
-                      {expense.dueDate && (
-                        <span className="text-[11px] font-semibold text-sp-text-sec flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          Venc: {new Date(expense.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                        </span>
-                      )}
-                    </div>
-                    <p className={cn("text-2xl font-black tracking-tight mt-0.5", isPaid ? "text-emerald-700" : "text-rose-600")}>
-                      {formatCurrency(expense.amount)}
-                    </p>
-                  </div>
-
-                  {/* Card Limit & Available Balance */}
-                  {limit > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-sp-text-sec">Limite: {formatCurrency(limit)}</span>
-                        <span className="text-emerald-700">Disponível: {formatCurrency(available)}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className={cn("h-full transition-all duration-500", usagePct > 80 ? "bg-rose-500" : usagePct > 50 ? "bg-amber-500" : "bg-emerald-500")}
-                          style={{ width: `${usagePct}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
-                        <span>Comprometido: {usagePct}%</span>
-                        <span>{available > 0 ? "Saldo Restante Positivo" : "Limite Esgotado"}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* BOTTOM: Action Button */}
-                <button 
-                  onClick={() => togglePaid(expense)} 
-                  disabled={isToggling}
+                Todos ({cardsList.length})
+              </button>
+              {BANK_OPTIONS.filter(b => cardsList.some(c => (c.bank || "outro") === b.id)).map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBank(selectedBank === b.id ? "all" : b.id)}
                   className={cn(
-                    "mt-4 w-full text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]",
-                    isPaid 
-                      ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200 shadow-xs" 
-                      : "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                    "text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border transition-all cursor-pointer shrink-0",
+                    selectedBank === b.id ? `${b.bg} border-transparent` : "bg-white text-sp-text-sec border-sp-border hover:border-slate-400"
                   )}
                 >
-                  {isToggling ? "..." : isPaid ? (<><Clock className="w-3.5 h-3.5" /> Reabrir Fatura</>) : (<><CheckCircle2 className="w-3.5 h-3.5" /> Pagar Fatura</>)}
+                  {b.name}
                 </button>
-              </div>
-            );
-          }
-
-          // ── STANDARD EXPENSE RENDERING ──
-          const IconComp = catIcon(expense.category);
-          const bgClass = isPaid ? "bg-emerald-100 text-emerald-600" : catColor(expense.category);
-          return (
-            <div 
-              key={expense.id} 
-              className={cn(
-                "border rounded-2xl p-3.5 sm:p-4 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
-                isPaid ? "bg-emerald-50/30 border-emerald-200/80" : isFut ? "bg-blue-50/25 border-blue-200/80" : "bg-white border-sp-border"
-              )}
-            >
-              {/* TOP: Compact Icon, Title & Badges/Actions */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0", bgClass)}>
-                    <IconComp className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className={cn("font-bold text-sm leading-tight truncate", isPaid ? "text-emerald-900 line-through opacity-70" : "text-sp-text-dark")}>
-                      {expense.name}
-                    </h3>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] uppercase font-bold text-sp-text-subtle tracking-wider">
-                        {catLabel(expense.category)}
-                      </span>
-                      {expense.type && (
-                        <>
-                          <span className="text-sp-text-subtle text-[9px]">•</span>
-                          <span className="text-[10px] text-sp-text-subtle font-medium">
-                            {expense.type === 'fixed' ? 'Fixo' : 'Variável'}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  {isFut && !isPaid && (
-                    <span className="bg-blue-500/10 text-blue-600 border border-blue-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                      Futura
-                    </span>
-                  )}
-                  {isPaid && (
-                    <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle2 className="w-2.5 h-2.5" /> Paga
-                    </span>
-                  )}
-                  <div className="flex items-center opacity-80 group-hover:opacity-100 transition-opacity ml-1">
-                    <button onClick={() => openEdit(expense)} className="p-1 text-sp-text-subtle hover:text-sp-purple hover:bg-slate-100 rounded" title="Editar">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => deleteExpense(expense.id)} className="p-1 text-sp-text-subtle hover:text-sp-red-text hover:bg-sp-red-bg rounded" title="Excluir">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* MIDDLE: Amount & Due Date */}
-              <div className="flex items-baseline justify-between gap-2 mt-2.5 pt-2 border-t border-slate-100 dark:border-sp-dark-border/40">
-                <span className={cn("text-lg sm:text-xl font-black tracking-tight", isPaid ? "text-emerald-700" : "text-indigo-950 dark:text-white")}>
-                  {formatCurrency(expense.amount)}
-                </span>
-                {expense.dueDate && (
-                  <span className={cn("text-[11px] font-semibold flex items-center gap-1", isFut ? "text-blue-600" : isPaid ? "text-emerald-600" : "text-sp-text-subtle")}>
-                    <Calendar className="w-3 h-3" />
-                    {new Date(expense.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                  </span>
-                )}
-              </div>
-
-              {/* BOTTOM: Slim Action Button */}
-              <button 
-                onClick={() => togglePaid(expense)} 
-                disabled={isToggling}
-                className={cn(
-                  "mt-2 w-full text-[11px] font-bold py-1.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]",
-                  isPaid 
-                    ? "bg-white text-sp-text-sec hover:bg-red-50 hover:text-sp-red-text border border-emerald-200 shadow-xs" 
-                    : "bg-sp-purple/8 text-sp-purple hover:bg-sp-purple hover:text-white border border-sp-purple/20 shadow-xs"
-                )}
-              >
-                {isToggling ? "..." : isPaid ? (<><Clock className="w-3 h-3" /> Marcar Pendente</>) : (<><CheckCircle2 className="w-3 h-3" /> Marcar como Paga</>)}
-              </button>
+              ))}
             </div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <div className="col-span-full border-2 border-dashed border-sp-border rounded-3xl py-16 px-4 text-center">
-            <TrendingDown className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <h4 className="font-bold text-sp-text-dark">Nenhum registro encontrado</h4>
-            <p className="text-xs text-sp-text-sec mt-1 mb-6">
-              {tab === "cards" ? "Nenhum cartão ou limite cadastrado ainda." : "Adicione sua primeira despesa usando o botão acima."}
-            </p>
-            <BrutalButton onClick={() => openAdd(tab === "cards" ? "credit_card" : undefined)} className="mx-auto w-max py-2 px-6">
-              {tab === "cards" ? "Cadastrar Cartão" : "Adicionar Despesa"}
-            </BrutalButton>
+          )}
+
+          {/* Cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {displayedCards.map(e => renderCardItem(e))}
+            {displayedCards.length === 0 && (
+              <div className="col-span-full border-2 border-dashed border-purple-200 rounded-3xl py-16 px-4 text-center">
+                <CreditCard className="w-12 h-12 text-purple-200 mx-auto mb-4" />
+                <h4 className="font-bold text-sp-text-dark">Nenhum cartão encontrado</h4>
+                <p className="text-xs text-sp-text-sec mt-1 mb-6">Nenhum cartão ou limite cadastrado ainda.</p>
+                <BrutalButton onClick={() => openAdd("credit_card")} className="mx-auto w-max py-2 px-6">
+                  Cadastrar Cartão
+                </BrutalButton>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {/* ── NORMAL EXPENSES SECTION (hidden when tab === "cards") ── */}
+      {tab !== "cards" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {displayedNormal.map(e => renderNormalItem(e))}
+          {displayedNormal.length === 0 && (
+            <div className="col-span-full border-2 border-dashed border-sp-border rounded-3xl py-16 px-4 text-center">
+              <TrendingDown className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h4 className="font-bold text-sp-text-dark">Nenhum registro encontrado</h4>
+              <p className="text-xs text-sp-text-sec mt-1 mb-6">
+                {tab === "normal" ? "Nenhuma despesa normal cadastrada ainda." : "Adicione sua primeira despesa usando o botão acima."}
+              </p>
+              <BrutalButton onClick={() => openAdd()} className="mx-auto w-max py-2 px-6">
+                Adicionar Despesa
+              </BrutalButton>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── MODAL DE CADASTRO / EDIÇÃO ── */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingExpense ? "Editar Despesa" : (watchedCategory === "credit_card" ? "Adicionar Cartão de Crédito" : watchedCategory === "overdraft" ? "Adicionar Cheque Especial" : "Nova Despesa")}>
