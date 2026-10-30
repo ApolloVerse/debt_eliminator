@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS public.expenses (
 );
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "cardLimit" NUMERIC DEFAULT 0;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "bank" TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "interestRate" NUMERIC DEFAULT 0;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "totalInstallments" INTEGER;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS "installmentNumber" INTEGER;
 
 -- ============================================================
 -- 4. DAILY EXPENSES TABLE

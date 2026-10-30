@@ -76,6 +76,9 @@ export interface Expense {
   recurrenceDay?: number;
   cardLimit?: number;
   bank?: string;
+  interestRate?: number;
+  totalInstallments?: number;
+  installmentNumber?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
