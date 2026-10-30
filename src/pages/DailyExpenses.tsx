@@ -4,7 +4,7 @@ import { DailyExpense } from "../types";
 import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/BrutalUI";
 import { Modal } from "../components/Modal";
 import { CategorySelect } from "../components/CategorySelect";
-import { formatCurrency, cn } from "../lib/utils";
+import { formatCurrency, parseCurrency, cn } from "../lib/utils";
 import { Plus, Pencil, Trash2, ShoppingCart, Car, Heart, Tv, Wrench, Package, MoreHorizontal, Calendar, TrendingDown, Clock } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -52,7 +52,7 @@ const catLabel = (cat: string) =>
 
 type FormData = {
   description: string;
-  amount: number;
+  amount: any;
   category: string;
   date: string;
   type: "fixed" | "variable";
@@ -110,7 +110,7 @@ export const DailyExpenses = () => {
     try {
       const payload = {
         description: data.description,
-        amount: Number(data.amount),
+        amount: parseCurrency(data.amount),
         category: data.category,
         date: data.date,
         type: data.type,
@@ -318,7 +318,7 @@ export const DailyExpenses = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <BrutalLabel>Valor (R$)</BrutalLabel>
-              <BrutalInput type="number" step="0.01" {...register("amount", { required: true })} placeholder="Ex: 45,90" />
+              <BrutalInput type="text" inputMode="decimal" {...register("amount", { required: true })} placeholder="Ex: 45,90" />
             </div>
             <div>
               <BrutalLabel>Tipo</BrutalLabel>

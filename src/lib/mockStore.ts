@@ -171,6 +171,25 @@ export class MockQueryBuilder implements PromiseLike<{ data: any; error: any }> 
     return this;
   }
 
+  throwOnError(): this {
+    return this;
+  }
+
+  in(column: string, values: any[]): this {
+    this.filters.push(item => values.includes(item[column]));
+    return this;
+  }
+
+  is(column: string, value: any): this {
+    this.filters.push(item => item[column] === value);
+    return this;
+  }
+
+  neq(column: string, value: any): this {
+    this.filters.push(item => item[column] !== value);
+    return this;
+  }
+
   delete(): this {
     this.op = 'delete';
     return this;

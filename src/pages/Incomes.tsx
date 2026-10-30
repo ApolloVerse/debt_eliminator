@@ -4,7 +4,7 @@ import { Income } from "../types";
 import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/BrutalUI";
 import { Modal } from "../components/Modal";
 import { CategorySelect } from "../components/CategorySelect";
-import { formatCurrency, cn } from "../lib/utils";
+import { formatCurrency, parseCurrency, cn } from "../lib/utils";
 import { Plus, Pencil, Trash2, DollarSign, Calendar, CheckCircle2, Clock, TrendingUp } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,7 +34,7 @@ const frequencyLabel = (freq: string) => {
 
 type FormData = {
   name: string;
-  amount: number;
+  amount: any;
   frequency: string;
   type: "fixed" | "variable";
   category: string;
@@ -111,7 +111,7 @@ export const Incomes = () => {
       const payload = {
         name: data.name,
         frequency: data.frequency,
-        amount: Number(data.amount),
+        amount: parseCurrency(data.amount),
         type: data.type,
         category: data.category,
         expectedDate: data.expectedDate || null,
@@ -267,7 +267,7 @@ export const Incomes = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <BrutalLabel>Valor (R$)</BrutalLabel>
-              <BrutalInput type="number" step="0.01" {...register("amount", { required: true })} placeholder="0,00" />
+              <BrutalInput type="text" inputMode="decimal" {...register("amount", { required: true })} placeholder="0,00" />
             </div>
             <div>
               <BrutalLabel>Tipo</BrutalLabel>
