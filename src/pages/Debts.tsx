@@ -45,6 +45,7 @@ const getCategoryLabel = (cat?: string) =>
 const getCategoryIcon = (cat?: string, debtName?: string) => {
   const n = (debtName ?? '').toLowerCase();
   if (n.includes('nubank') || cat === 'credit_card') return CreditCard;
+  if (n.includes('luz') || n.includes('energia')) return Zap;
   if (cat === 'monthly_bill' || cat === 'utilities') return ReceiptText;
   if (cat === 'housing') return Home;
   if (cat === 'overdraft') return AlertTriangle;
@@ -504,54 +505,7 @@ export const Debts = () => {
     };
   };
 
-  const upcomingList: UpcomingItem[] = [];
-
-  // Add unpaid debts with dueDate
-  unpaidDebts.forEach(d => {
-    const info = parseDueDateInfo(d.dueDate);
-    upcomingList.push({
-      id: `debt-${d.id}`,
-      sourceType: 'debt',
-      title: d.name,
-      subTitle: getCategoryLabel(d.category),
-      amount: Number(d.installmentAmount || d.remainingAmount) || 0,
-      dueDate: d.dueDate,
-      daysUntil: info.daysUntil,
-      statusText: info.statusText,
-      statusBadgeClass: info.badgeClass,
-      category: d.category || 'other',
-      rawDebt: d,
-    });
-  });
-
-  // Add all unpaid expenses (cards, loans, and normal bills like agua, luz, net)
-  unpaidExpenses.forEach(e => {
-    const info = parseDueDateInfo(e.dueDate);
-    const bankInfo = getBankInfo(e.bank);
-    const isCredit = isCreditCategory(e.category);
-    upcomingList.push({
-      id: `exp-${e.id}`,
-      sourceType: 'expense',
-      title: e.name,
-      subTitle: isCredit
-        ? (e.category === 'loan' ? `Empréstimo · ${bankInfo.name}` : `Cartão · ${bankInfo.name}`)
-        : getCategoryLabel(e.category),
-      amount: Number(e.amount) || 0,
-      dueDate: e.dueDate || '',
-      daysUntil: info.daysUntil,
-      statusText: info.statusText,
-      statusBadgeClass: info.badgeClass,
-      category: e.category,
-      bank: e.bank,
-      rawExpense: e,
-    });
-  });
-
-  // Sort upcoming: overdue first, then today, then soonest
-  upcomingList.sort((a, b) => a.daysUntil - b.daysUntil);
-  const activeUpcoming = upcomingList.slice(0, 4);
-
-  // ── Unified items for Main List ───────────────────────────────────────────
+  // ── Unified items for Main List & Upcoming ───────────────────────────────
   type UnifiedListItem = {
     id: string;
     itemType: 'debt' | 'card_expense' | 'bill_expense';
@@ -682,6 +636,93 @@ export const Debts = () => {
     }
     return false;
   };
+
+  // ── Próximos a Vencer (Dívidas, Contas Básicas e Faturas do Mês Selecionado / Vigente) ──
+  const targetMonthForUpcoming = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
+
+  const getEffectiveDueDateForMonth = (item: UnifiedListItem, targetMonthKey: string): string => {
+    // 1. If item has dueDate exactly in targetMonthKey:
+    if (item.dueDate && getMonthKeyFromDate(item.dueDate) === targetMonthKey) {
+      return item.dueDate;
+    }
+
+    // 2. If it matches target month via recurrence/installments:
+    if (itemMatchesMonth(item, targetMonthKey)) {
+      if (item.rawExpense?.recurrenceDay) {
+        return `${targetMonthKey}-${String(item.rawExpense.recurrenceDay).padStart(2, '0')}`;
+      }
+      if (item.dueDate) {
+        const parts = item.dueDate.split('T')[0].split('-');
+        if (parts.length >= 3) {
+          return `${targetMonthKey}-${parts[2].padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // 3. Fallback to existing dueDate
+    return item.dueDate || '';
+  };
+
+  // Filter all items that must be paid in this month (or are overdue unpaid)
+  const unpaidItemsForUpcoming = allItems.filter(item => {
+    // If already paid for this target month, do not show in upcoming pending
+    if (isItemPaidInMonth(item, targetMonthForUpcoming)) {
+      return false;
+    }
+
+    // Matches the researched month (includes basic utilities, bills, cards, loans, debts)
+    if (itemMatchesMonth(item, targetMonthForUpcoming)) {
+      return true;
+    }
+
+    // Overdue from a past month and completely unpaid
+    if (item.dueDate && getMonthKeyFromDate(item.dueDate) < targetMonthForUpcoming && !item.isPaid) {
+      return true;
+    }
+
+    return false;
+  });
+
+  const upcomingList: UpcomingItem[] = unpaidItemsForUpcoming.map(item => {
+    const effectiveDueDate = getEffectiveDueDateForMonth(item, targetMonthForUpcoming);
+    const info = parseDueDateInfo(effectiveDueDate);
+    const isExpense = item.itemType === 'bill_expense' || item.itemType === 'card_expense';
+    const isCredit = isCreditCategory(item.category);
+    const bankInfo = item.bank ? getBankInfo(item.bank) : null;
+
+    let subTitle = getCategoryLabel(item.category);
+    if (isExpense && isCredit && bankInfo) {
+      subTitle = item.category === 'loan' ? `Empréstimo · ${bankInfo.name}` : `Cartão · ${bankInfo.name}`;
+    } else if (item.itemType === 'debt') {
+      subTitle = item.category === 'monthly_bill' ? 'Conta Fixa Mensal' : getCategoryLabel(item.category);
+    }
+
+    const itemAmount = item.itemType === 'debt'
+      ? (Number(item.installmentAmount || item.amount) || 0)
+      : (Number(item.amount) || 0);
+
+    return {
+      id: item.id,
+      sourceType: isExpense ? 'expense' : 'debt',
+      title: item.name,
+      subTitle,
+      amount: itemAmount,
+      dueDate: effectiveDueDate,
+      daysUntil: info.daysUntil,
+      statusText: info.statusText,
+      statusBadgeClass: info.badgeClass,
+      category: item.category,
+      bank: item.bank,
+      rawDebt: item.rawDebt,
+      rawExpense: item.rawExpense,
+    };
+  });
+
+  // Sort upcoming: overdue first (< 0), then today (0), then chronological soonest
+  upcomingList.sort((a, b) => a.daysUntil - b.daysUntil);
+
+  // Show all items to be paid for the selected month (no .slice(0, 4) limit!)
+  const activeUpcoming = upcomingList;
 
   // ── Monthly metrics calculation (Dívidas/Contas + Receitas) ───────────────
   const monthForMetrics = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
@@ -1170,28 +1211,33 @@ export const Debts = () => {
         </div>
       </div>
 
-      {/* 🚨 PRÓXIMOS A VENCER (Dívidas, Contas e Faturas próximas) */}
+      {/* 🚨 PRÓXIMOS A VENCER (Dívidas, Contas e Faturas do Mês) */}
       <div className="bg-white border border-sp-border rounded-3xl p-5 sm:p-6 shadow-sm relative">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping inline-block" />
               <h3 className="text-base sm:text-lg font-extrabold text-sp-text-dark leading-tight">
                 Próximos a Vencer
               </h3>
+              <span className="text-[10px] font-bold text-sp-purple bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                {selectedMonth !== 'all' ? getMonthName(selectedMonth) : 'Mês Vigente'}
+              </span>
             </div>
             <p className="text-xs font-semibold text-sp-text-sec mt-0.5">
-              Dívidas, contas básicas e faturas com vencimento iminente ou em atraso
+              Dívidas, contas básicas e faturas com vencimento {selectedMonth === 'all' ? 'no mês vigente' : `em ${getMonthName(selectedMonth)}`} ou em atraso
             </p>
           </div>
-          <span className="text-xs font-bold text-sp-purple bg-sp-purple/10 px-2.5 py-1 rounded-full">
-            {activeUpcoming.length} {activeUpcoming.length === 1 ? 'item' : 'itens'}
+          <span className="text-xs font-bold text-sp-purple bg-sp-purple/10 px-2.5 py-1 rounded-full self-start sm:self-auto shrink-0">
+            {activeUpcoming.length} {activeUpcoming.length === 1 ? 'item a pagar' : 'itens a pagar'}
           </span>
         </div>
 
         {activeUpcoming.length === 0 ? (
           <div className="text-center py-6 border-2 border-dashed border-sp-border rounded-2xl bg-slate-50/50">
-            <p className="text-xs font-semibold text-sp-text-sec">Nenhuma conta pendente próxima! 🎉</p>
+            <p className="text-xs font-semibold text-sp-text-sec">
+              Nenhuma conta pendente para {selectedMonth === 'all' ? 'o mês vigente' : getMonthName(selectedMonth)}! 🎉
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
