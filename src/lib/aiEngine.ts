@@ -56,12 +56,64 @@ export interface DebtEliminationPlan {
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const SHORT_MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+// Helper to calculate exact operating income for ANY specific month key (e.g. "2026-10")
+export function calculateIncomeForMonth(incomes: Income[], targetMonthKey: string): {
+  total: number;
+  mainSource: string;
+  items: Income[];
+} {
+  const items = incomes.filter(i => {
+    if (!i.isActive) return false;
+    // CRITICAL: NEVER include bank boxes / caixinhas in monthly operating income!
+    // Caixinhas are savings reserves, not recurring monthly income!
+    if (i.category === 'bank_box') return false;
+
+    // If it has a specific expectedDate (e.g., '2026-10-05', '2026-03-20')
+    if (i.expectedDate) {
+      const monthPart = i.expectedDate.slice(0, 7);
+      // For sporadic/annual entries (bonus, 13º, ferias, IR): ONLY include in its specific month!
+      if (i.frequency === 'sporadic' || i.frequency === 'annual') {
+        return monthPart === targetMonthKey;
+      }
+      // For monthly recurring with start date
+      if (i.frequency === 'monthly') {
+        return targetMonthKey >= monthPart;
+      }
+    }
+
+    // Recurring incomes without expectedDate (or regular monthly, weekly, biweekly)
+    if (i.frequency === 'monthly' || i.frequency === 'weekly' || i.frequency === 'biweekly') {
+      return true;
+    }
+
+    return false;
+  });
+
+  const total = items.reduce((acc, i) => {
+    const amt = Number(i.amount) || 0;
+    if (i.frequency === 'weekly' && !i.expectedDate) return acc + (amt * 4);
+    if (i.frequency === 'biweekly' && !i.expectedDate) return acc + (amt * 2);
+    return acc + amt;
+  }, 0);
+
+  // Sort to find the true primary income source for that month
+  const sorted = [...items].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+  const mainSource = sorted[0]?.name || 'Receitas Operacionais';
+
+  return { total, mainSource, items };
+}
+
 export function getFinancialSnapshot(
   debts: Debt[],
   incomes: Income[],
   expenses: Expense[],
   dailyExpenses: DailyExpense[]
 ): FinancialSnapshot {
+  const now = new Date();
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+  const currentYearStr = String(now.getFullYear());
+  const currentMonthKey = `${currentYearStr}-${currentMonthStr}`;
+
   // 1. Direct debts from `debts` table (current & installments remaining)
   const directDebtsBalance = debts
     .filter(d => d.isActive && !d.isPaid)
@@ -91,7 +143,9 @@ export function getFinancialSnapshot(
   // Total debt encompassing ALL obligations (debts + expenses vigentes e futuras)
   const totalDebt = directDebtsBalance + expensesDebtsBalance;
 
-  const monthlyIncome = incomes.filter(i => i.isActive).reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  // Real operating monthly income for CURRENT month only (excluding caixinhas and other-month bonuses)
+  const currentMonthIncomeData = calculateIncomeForMonth(incomes, currentMonthKey);
+  const monthlyIncome = currentMonthIncomeData.total;
 
   // Living fixed expenses (non-credit)
   const monthlyFixedExpenses = expenses
@@ -108,11 +162,6 @@ export function getFinancialSnapshot(
     .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
 
   const monthlyDebtPayments = debtsInstallments + creditCardExpenses;
-
-  const now = new Date();
-  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
-  const currentYearStr = String(now.getFullYear());
-  const currentMonthKey = `${currentYearStr}-${currentMonthStr}`;
 
   const monthlyDailyExpenses = dailyExpenses
     .filter(de => {
@@ -430,41 +479,68 @@ function generateMonthlyReport(
     report += `> ✅ **CENÁRIO ESTÁVEL:** Você possui saldo livre positivo de ${formatCurrency(snapshot.freeCash)}/mês. Com o método deste plano, sua quitação será acelerada com grande economia em juros.\n\n`;
   }
 
+  // Current month key
+  const currentMonthKey = `${currentYear}-${String(currentMonthIdx + 1).padStart(2, '0')}`;
+  const currentMonthIncomeData = calculateIncomeForMonth(incomes, currentMonthKey);
+  const currentMonthIncomes = currentMonthIncomeData.items;
+
+  // Separate reserves/caixinhas so they are acknowledged without distorting monthly income
+  const bankBoxes = incomes.filter(i => i.isActive && i.category === 'bank_box');
+  const totalBankBoxes = bankBoxes.reduce((acc, b) => acc + (Number(b.amount) || 0), 0);
+
   // 2. Origem das Receitas (De onde vem o dinheiro) e Receitas Futuras
   report += `## 💵 2. ORIGEM DAS RECEITAS (DE ONDE VEM O DINHEIRO & PROJEÇÃO FUTURA)\n\n`;
-  report += `### 📥 De onde está vindo o dinheiro no mês atual:\n\n`;
-  if (activeIncomes.length > 0) {
+  report += `### 📥 De onde está vindo o dinheiro no mês atual (${MONTH_NAMES[currentMonthIdx]} de ${currentYear}):\n\n`;
+  if (currentMonthIncomes.length > 0) {
     report += `| Fonte / Nome da Receita | Tipo | Frequência | Dia Previsto | Valor Mensal |\n`;
     report += `|:---|:---:|:---:|:---:|---:|\n`;
-    activeIncomes.forEach(i => {
+    currentMonthIncomes.forEach(i => {
       const typeLabel = i.type === 'variable' ? 'Variável' : 'Fixa';
       const freqLabel = i.frequency === 'weekly' ? 'Semanal' : i.frequency === 'biweekly' ? 'Quinzenal' : 'Mensal';
-      const dayLabel = i.recurrenceDay ? `Dia ${i.recurrenceDay}` : (i.expectedDate ? i.expectedDate.split('-')[2] : 'Mês todo');
+      const dayLabel = i.recurrenceDay ? `Dia ${i.recurrenceDay}` : (i.expectedDate ? `Dia ${i.expectedDate.split('-')[2]}` : 'Ao longo do mês');
       report += `| **${i.name}** | ${typeLabel} | ${freqLabel} | ${dayLabel} | **${formatCurrency(i.amount)}** |\n`;
     });
-    report += `| **TOTAL RECEITAS DO MÊS** | - | - | - | **${formatCurrency(snapshot.monthlyIncome)}** |\n\n`;
+    report += `| **TOTAL RECEITAS OPERACIONAIS DO MÊS** | - | - | - | **${formatCurrency(snapshot.monthlyIncome)}** |\n\n`;
   } else {
-    report += `*Nenhuma receita ativa cadastrada no momento.*\n\n`;
+    report += `*Nenhuma receita operacional cadastrada para este mês.*\n\n`;
+  }
+
+  if (bankBoxes.length > 0) {
+    report += `> 🏦 **Caixinhas & Reservas Bancárias Guardadas:** Você possui **${formatCurrency(totalBankBoxes)}** em reservas (${bankBoxes.map(b => b.name).slice(0, 4).join(', ')}). Este valor é patrimônio de reserva e **não** entra no cálculo de receitas correntes de salário.\n\n`;
   }
 
   report += `### 🔮 Projeção de Dinheiro Futuro (Próximos 6 Meses):\n\n`;
-  report += `Com base nas receitas cadastradas e estabilidade das fontes, aqui está o dinheiro que você receberá nos próximos meses:\n\n`;
-  report += `| Mês de Referência | Entrada Prevista | Fonte Principal | Status |\n`;
-  report += `|:---|---:|:---|:---:|\n`;
+  report += `Calculado com base no calendário real das suas receitas e nas despesas e parcelas estimadas de cada mês:\n\n`;
+  report += `| Mês de Referência | Entrada Prevista | Despesas & Parcelas | Saldo Projetado | Fonte Principal | Status / Detalhes |\n`;
+  report += `|:---|---:|---:|---:|:---|:---|\n`;
+
+  let totalAccumulated6Months = 0;
   for (let m = 0; m < 6; m++) {
     const fDate = new Date(currentYear, currentMonthIdx + m, 1);
+    const fMonthKey = `${fDate.getFullYear()}-${String(fDate.getMonth() + 1).padStart(2, '0')}`;
     const mLabel = `${MONTH_NAMES[fDate.getMonth()]} de ${fDate.getFullYear()}`;
-    // Estimated income (including projected 13th in Nov/Dec if fixed salary exists)
-    let projectedIncome = snapshot.monthlyIncome;
-    const isNovDec = fDate.getMonth() === 10 || fDate.getMonth() === 11;
-    const hasFixedSalary = activeIncomes.some(i => i.type !== 'variable');
-    if (isNovDec && hasFixedSalary) {
-      projectedIncome += (snapshot.monthlyIncome * 0.5); // 13º salary projection
+
+    // Real monthly income for this exact future month:
+    const mIncomeData = calculateIncomeForMonth(incomes, fMonthKey);
+    const mIncome = mIncomeData.total;
+    totalAccumulated6Months += mIncome;
+
+    // Fixed expenses + simulated debt installment for this month:
+    const mDebt = monthlyActions[m]?.totalPayment ?? snapshot.monthlyDebtPayments;
+    const mOutflows = snapshot.monthlyFixedExpenses + mDebt;
+    const mNet = mIncome - mOutflows;
+    const balanceSign = mNet >= 0 ? `+${formatCurrency(mNet)}` : `-${formatCurrency(Math.abs(mNet))}`;
+
+    let statusNote = m === 0 ? 'Mês Vigente (Real)' : 'Fluxo Recorrente Regular';
+    const sporadicItems = mIncomeData.items.filter(i => i.frequency === 'sporadic' || i.frequency === 'annual');
+    if (sporadicItems.length > 0 && m > 0) {
+      statusNote = `Inclui: ${sporadicItems.map(i => i.name).slice(0, 2).join(', ')}`;
     }
-    const note = isNovDec && hasFixedSalary ? 'Projeção c/ parcela 13º Salário' : 'Fluxo Recorrente Regular';
-    report += `| ${mLabel} | **${formatCurrency(projectedIncome)}** | ${activeIncomes[0]?.name || 'Receitas Cadastradas'} | ${m === 0 ? 'Mês Vigente' : note} |\n`;
+
+    report += `| **${mLabel}** | **${formatCurrency(mIncome)}** | ${formatCurrency(mOutflows)} | **${balanceSign}** | ${mIncomeData.mainSource} | ${statusNote} |\n`;
   }
-  report += `\n> 💡 **Previsão Acumulada em 6 Meses:** Você movimentará aproximadamente **${formatCurrency(snapshot.monthlyIncome * 6)}** em receitas. Saber exatamente para onde cada centavo desse montante vai é a chave para a sua libertação financeira.\n\n`;
+
+  report += `\n> 💡 **Previsão Real Acumulada em 6 Meses:** Total de **${formatCurrency(totalAccumulated6Months)}** em receitas reais esperadas no período.\n\n`;
 
   // 3. Raio-X das Despesas (Do Mês e do Futuro)
   report += `## 💳 3. RAIO-X DAS DESPESAS & CONTAS (DO MÊS E DO FUTURO)\n\n`;

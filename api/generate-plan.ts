@@ -16,18 +16,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const groq = new Groq({ apiKey });
 
-    const monthlyIncome = incomes.reduce((acc: number, i: any) => acc + i.amount, 0);
-    const monthlyFixedExpenses = expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
-    const monthlyDebtPayments = debts.reduce((acc: number, d: any) => acc + d.installmentAmount, 0);
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Operating incomes only (exclude bank boxes / caixinhas and sporadic incomes from other months)
+    const validIncomes = (incomes || []).filter((i: any) => {
+      if (i.category === 'bank_box') return false;
+      if (i.expectedDate && (i.frequency === 'sporadic' || i.frequency === 'annual')) {
+        return i.expectedDate.startsWith(currentMonthKey);
+      }
+      return i.frequency === 'monthly' || i.frequency === 'weekly' || i.frequency === 'biweekly';
+    });
+
+    const monthlyIncome = validIncomes.reduce((acc: number, i: any) => {
+      const amt = Number(i.amount) || 0;
+      if (i.frequency === 'weekly' && !i.expectedDate) return acc + (amt * 4);
+      if (i.frequency === 'biweekly' && !i.expectedDate) return acc + (amt * 2);
+      return acc + amt;
+    }, 0);
+
+    // Living fixed expenses (non-credit)
+    const monthlyFixedExpenses = (expenses || [])
+      .filter((e: any) => !(e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+      .reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+
+    // Debts installments + cards in expenses
+    const directDebtsInstallments = (debts || [])
+      .filter((d: any) => !d.isPaid)
+      .reduce((acc: number, d: any) => acc + (Number(d.installmentAmount || d.remainingAmount) || 0), 0);
+
+    const cardExpenses = (expenses || [])
+      .filter((e: any) => !e.isPaid && (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+      .reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
+
+    const monthlyDebtPayments = directDebtsInstallments + cardExpenses;
     const dailyTotal = dailyExpenses?.projectedMonthly || 0;
     const dailyAvg = dailyExpenses?.avgDaily || 0;
     const freeCash = monthlyIncome - monthlyFixedExpenses - monthlyDebtPayments - dailyTotal;
+
+    const bankBoxes = (incomes || []).filter((i: any) => i.category === 'bank_box');
 
     const prompt = `[SYSTEM] Você é um Consultor Financeiro Sênior e Especialista em Engenharia Financeira e Eliminação de Dívidas.
 
 REGRAS OBRIGATÓRIAS:
 - Responda APENAS em Português do Brasil.
 - Use APENAS os dados financeiros reais fornecidos abaixo. Não invente números fora da realidade informada.
+- IMPORTANTE: Caixinhas e reservas bancárias guardadas NÃO são receitas de salário corrente. Elas são patrimônio/reserva de emergência e jamais devem ser somadas à renda mensal de fluxo de caixa nem tidas como fonte salarial.
 - Seja objetivo, didático, encorajador e altamente estratégico.
 - Formate sua resposta em Markdown rico com tabelas, marcadores e emojis.
 
@@ -36,12 +70,13 @@ ESTRUTURA OBRIGATÓRIA DA SUA RESPOSTA:
 # 📋 RELATÓRIO FINANCEIRO COMPLETO & PLANO DE ELIMINAÇÃO DE DÍVIDAS
 
 ## 📊 1. RAIO-X FINANCEIRO & BALANÇO OPERACIONAL
-- Resumo do fluxo de caixa: Receita Mensal, Despesas Fixas, Parcelas de Dívidas, Gastos Diários, Saldo Livre Disponível.
+- Resumo do fluxo de caixa: Receita Mensal Operacional, Despesas Fixas, Parcelas de Dívidas, Gastos Diários, Saldo Livre Disponível.
 - Percentual de comprometimento da renda e diagnóstico do cenário (se há déficit ou saldo positivo).
 
 ## 💵 2. ORIGEM DAS RECEITAS (DE ONDE VEM O DINHEIRO & PROJEÇÃO FUTURA)
-- Discrimine as receitas atuais: de onde está vindo cada centavo (fontes, valores, recorrência).
-- Apresente a projeção de dinheiro futuro para os próximos 6 meses (fluxo recorrente de entradas acumuladas).
+- Discrimine as receitas operacionais reais: de onde está vindo cada centavo de trabalho/prolabore/salário.
+- Mencione as caixinhas/reservas guardadas em destaque como patrimônio de defesa (se houver).
+- Apresente a projeção de dinheiro futuro para os próximos 6 meses com base na renda mensal real.
 
 ## 💳 3. RAIO-X DAS DESPESAS & CONTAS (DO MÊS E DO FUTURO)
 - Discrimine as contas fixas e variáveis do mês atual (moradia, contas básicas, alimentação, etc.).
@@ -78,14 +113,17 @@ Apresente tanto estratégias simples quanto sofisticadas:
 - 4 ações imediatas e práticas para iniciar hoje.
 
 --- DADOS FINANCEIROS REAIS DO USUÁRIO ---
-Receita Mensal Total: R$ ${monthlyIncome.toFixed(2)}
+Receita Mensal Operacional: R$ ${monthlyIncome.toFixed(2)}
 Despesas Fixas Totais: R$ ${monthlyFixedExpenses.toFixed(2)}
 Parcelas Mensais de Dívidas: R$ ${monthlyDebtPayments.toFixed(2)}
 Gastos Diários Projetados: R$ ${dailyTotal.toFixed(2)} (Média R$ ${dailyAvg.toFixed(2)}/dia)
 Saldo Livre Líquido: R$ ${freeCash.toFixed(2)}
 
-Fontes de Receitas:
-${incomes.length > 0 ? incomes.map((i: any) => `- ${i.name} (${i.type || 'Fixa'}, ${i.frequency || 'mensal'}): R$ ${Number(i.amount).toFixed(2)}${i.recurrenceDay ? ` (dia ${i.recurrenceDay})` : ''}`).join('\n') : 'Nenhuma receita ativa cadastrada'}
+Fontes Reais de Receita Operacional:
+${validIncomes.length > 0 ? validIncomes.map((i: any) => `- ${i.name} (${i.type || 'Fixa'}, ${i.frequency || 'mensal'}): R$ ${Number(i.amount).toFixed(2)}${i.recurrenceDay ? ` (dia ${i.recurrenceDay})` : ''}`).join('\n') : 'Nenhuma receita operacional cadastrada'}
+
+${bankBoxes.length > 0 ? `Caixinhas e Reservas Bancárias Guardadas (Patrimônio / Não é salário mensal):
+${bankBoxes.map((b: any) => `- ${b.name}: R$ ${Number(b.amount).toFixed(2)}`).join('\n')}` : ''}
 
 Despesas Fixas e Contas:
 ${expenses.length > 0 ? expenses.map((e: any) => `- ${e.name} (${e.category || 'Fixa'}): R$ ${Number(e.amount).toFixed(2)}${e.dueDate ? ` (venc: ${e.dueDate})` : ''}`).join('\n') : 'Nenhuma despesa fixa cadastrada'}
