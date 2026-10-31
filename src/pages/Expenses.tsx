@@ -775,9 +775,38 @@ export const Expenses = () => {
           </div>
 
           {/* Title */}
-          <h3 className={cn("font-black text-base truncate mb-2", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
+          <h3 className={cn("font-black text-base truncate", !hasUnpaid ? "text-emerald-950 opacity-80" : "text-slate-900")}>
             {card.name}
           </h3>
+
+          {/* Available Limit Badge — always visible when limit is set */}
+          {card.cardLimit > 0 && (
+            <div className="mt-1.5 mb-2 flex items-center gap-2">
+              {card.availableLimit > 0 ? (
+                <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 flex-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[8px] font-black uppercase tracking-wider text-emerald-600">Limite Disponível</p>
+                    <p className="text-sm font-black text-emerald-700 leading-tight">{formatCurrency(card.availableLimit)}</p>
+                  </div>
+                  <span className="ml-auto text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                    {100 - card.usagePct}% livre
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1 flex-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[8px] font-black uppercase tracking-wider text-rose-600">Limite Esgotado</p>
+                    <p className="text-sm font-black text-rose-700 leading-tight">{formatCurrency(card.cardLimit)} (total)</p>
+                  </div>
+                  <span className="ml-auto text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded shrink-0">
+                    {card.usagePct}% usado
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Current / Next Invoice Box - Compact & balanced */}
           {currentInv && (
@@ -818,8 +847,8 @@ export const Expenses = () => {
           {card.cardLimit > 0 && (
             <div className="mt-2.5 space-y-1">
               <div className="flex justify-between text-[11px] font-bold">
-                <span className="text-sp-text-sec">Limite: {formatCurrency(card.cardLimit)}</span>
-                <span className="text-emerald-700">Disponível: {formatCurrency(card.availableLimit)}</span>
+                <span className="text-sp-text-sec">Limite Total: {formatCurrency(card.cardLimit)}</span>
+                <span className="text-sp-text-sec">Comprometido: {formatCurrency(card.totalCommitted)}</span>
               </div>
               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                 <div 
@@ -831,8 +860,8 @@ export const Expenses = () => {
                 />
               </div>
               <div className="flex justify-between text-[9px] font-extrabold text-sp-text-subtle uppercase tracking-wider">
-                <span>Comprometido: {card.usagePct}% ({formatCurrency(card.totalCommitted)})</span>
-                <span>{card.availableLimit > 0 ? "Saldo Restante Positivo" : "Limite Esgotado"}</span>
+                <span>{card.usagePct}% utilizado do limite</span>
+                <span>{card.invoices.length} fatura{card.invoices.length !== 1 ? 's' : ''} registrada{card.invoices.length !== 1 ? 's' : ''}</span>
               </div>
             </div>
           )}
