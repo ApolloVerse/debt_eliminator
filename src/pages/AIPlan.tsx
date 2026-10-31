@@ -4,6 +4,7 @@ import { Debt, Income, Expense, DailyExpense, AIPlan as AIPlanType, AIStrategy }
 import { generateEliminationPlan, getFinancialSnapshot, type DebtEliminationPlan, type FinancialSnapshot } from '../lib/aiEngine';
 import { Title, BrutalButton } from '../components/BrutalUI';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
   Sparkles, 
   Zap,
@@ -625,8 +626,58 @@ export const AIPlan = () => {
           </div>
 
           {showFullReport && (
-            <div className="custom-markdown bg-sp-bg p-5 sm:p-7 rounded-2xl border border-sp-border max-h-[750px] overflow-y-auto leading-relaxed shadow-inner">
-              <ReactMarkdown>{savedPlanContent}</ReactMarkdown>
+            <div className="custom-markdown bg-sp-bg p-5 sm:p-8 rounded-2xl border border-sp-border max-h-[800px] overflow-y-auto leading-relaxed shadow-inner">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ node, ...props }) => (
+                    <div className="overflow-x-auto my-5 rounded-2xl border border-sp-border shadow-2xs bg-white">
+                      <table className="w-full text-left text-xs sm:text-sm border-collapse" {...props} />
+                    </div>
+                  ),
+                  thead: ({ node, ...props }) => (
+                    <thead className="bg-slate-100/90 text-slate-900 font-extrabold border-b border-sp-border" {...props} />
+                  ),
+                  th: ({ node, ...props }) => (
+                    <th className="px-4 py-3 font-extrabold text-xs uppercase tracking-wider text-slate-800 whitespace-nowrap" {...props} />
+                  ),
+                  td: ({ node, ...props }) => (
+                    <td className="px-4 py-3 border-b border-slate-100 text-slate-700 font-medium text-xs sm:text-sm" {...props} />
+                  ),
+                  tr: ({ node, ...props }) => (
+                    <tr className="hover:bg-purple-50/30 transition-colors" {...props} />
+                  ),
+                  h1: ({ node, ...props }) => (
+                    <h1 className="text-xl sm:text-2xl font-black text-sp-purple border-b-2 border-purple-200 pb-3 mt-8 mb-5 flex items-center gap-2" {...props} />
+                  ),
+                  h2: ({ node, ...props }) => (
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 border-b border-sp-border pb-2.5 mt-8 mb-4 flex items-center gap-2" {...props} />
+                  ),
+                  h3: ({ node, ...props }) => (
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-800 mt-6 mb-3" {...props} />
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p className="text-xs sm:text-sm text-sp-text-sec leading-relaxed mb-4 font-normal" {...props} />
+                  ),
+                  ul: ({ node, ...props }) => (
+                    <ul className="list-disc list-inside space-y-2 mb-5 text-xs sm:text-sm text-sp-text-sec pl-2" {...props} />
+                  ),
+                  ol: ({ node, ...props }) => (
+                    <ol className="list-decimal list-inside space-y-2 mb-5 text-xs sm:text-sm text-sp-text-sec pl-2" {...props} />
+                  ),
+                  li: ({ node, ...props }) => (
+                    <li className="leading-relaxed" {...props} />
+                  ),
+                  blockquote: ({ node, ...props }) => (
+                    <blockquote className="border-l-4 border-sp-purple bg-purple-50/70 p-4 my-5 rounded-r-2xl text-xs sm:text-sm text-purple-950 font-medium shadow-2xs leading-relaxed" {...props} />
+                  ),
+                  hr: ({ node, ...props }) => (
+                    <hr className="my-6 border-sp-border" {...props} />
+                  ),
+                }}
+              >
+                {savedPlanContent}
+              </ReactMarkdown>
             </div>
           )}
         </div>

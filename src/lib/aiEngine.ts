@@ -62,12 +62,52 @@ export function getFinancialSnapshot(
   expenses: Expense[],
   dailyExpenses: DailyExpense[]
 ): FinancialSnapshot {
-  const totalDebt = debts.filter(d => d.isActive && !d.isPaid).reduce((acc, d) => acc + (Number(d.remainingAmount) || 0), 0);
+  // 1. Direct debts from `debts` table (current & installments remaining)
+  const directDebtsBalance = debts
+    .filter(d => d.isActive && !d.isPaid)
+    .reduce((acc, d) => {
+      const rem = Number(d.remainingAmount);
+      if (!isNaN(rem) && rem > 0) return acc + rem;
+      const tot = Number(d.totalAmount);
+      if (!isNaN(tot) && tot > 0) return acc + tot;
+      const inst = Number(d.installmentAmount);
+      const remainingCount = Math.max(1, (d.totalInstallments || 1) - (d.paidInstallments || 0));
+      if (!isNaN(inst) && inst > 0) return acc + (inst * remainingCount);
+      return acc;
+    }, 0);
+
+  // 2. Unpaid expenses from `expenses` table (credit cards, loans, bills, future installments)
+  const expensesDebtsBalance = expenses
+    .filter(e => e.isActive && !e.isPaid)
+    .reduce((acc, e) => {
+      const amt = Number(e.amount) || 0;
+      if (e.totalInstallments && e.totalInstallments > 1 && e.installmentNumber) {
+        const remainingInst = Math.max(1, e.totalInstallments - e.installmentNumber + 1);
+        return acc + (amt * remainingInst);
+      }
+      return acc + amt;
+    }, 0);
+
+  // Total debt encompassing ALL obligations (debts + expenses vigentes e futuras)
+  const totalDebt = directDebtsBalance + expensesDebtsBalance;
 
   const monthlyIncome = incomes.filter(i => i.isActive).reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
 
-  const monthlyFixedExpenses = expenses.filter(e => e.isActive).reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
-  const monthlyDebtPayments = debts.filter(d => d.isActive && !d.isPaid).reduce((acc, d) => acc + (Number(d.installmentAmount || d.remainingAmount) || 0), 0);
+  // Living fixed expenses (non-credit)
+  const monthlyFixedExpenses = expenses
+    .filter(e => e.isActive && !(e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  // Monthly debt / credit commitments
+  const debtsInstallments = debts
+    .filter(d => d.isActive && !d.isPaid)
+    .reduce((acc, d) => acc + (Number(d.installmentAmount || d.remainingAmount) || 0), 0);
+
+  const creditCardExpenses = expenses
+    .filter(e => e.isActive && !e.isPaid && (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  const monthlyDebtPayments = debtsInstallments + creditCardExpenses;
 
   const now = new Date();
   const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
@@ -137,10 +177,57 @@ export function generateEliminationPlan(
   strategy: 'snowball' | 'avalanche'
 ): DebtEliminationPlan {
   const snapshot = getFinancialSnapshot(debts, incomes, expenses, dailyExpenses);
-  const activeDebts = debts.filter(d => d.isActive && d.remainingAmount > 0);
 
-  // Sort debts by strategy
-  const sortedDebts = [...activeDebts].sort((a, b) => {
+  // Combine all active debts from `debts` and unpaid debts/cards from `expenses`
+  type UnifiedDebtItem = {
+    id: string;
+    name: string;
+    remainingAmount: number;
+    installmentAmount: number;
+    interestRate: number;
+    totalInstallments: number;
+  };
+
+  const unifiedDebts: UnifiedDebtItem[] = [];
+
+  // Add debts from debts table
+  debts.filter(d => d.isActive && !d.isPaid).forEach(d => {
+    const rem = Number(d.remainingAmount) || Number(d.totalAmount) || 0;
+    const inst = Number(d.installmentAmount) || rem;
+    if (rem > 0 || inst > 0) {
+      unifiedDebts.push({
+        id: `debt-${d.id}`,
+        name: d.name,
+        remainingAmount: rem > 0 ? rem : inst,
+        installmentAmount: inst > 0 ? inst : rem,
+        interestRate: Number(d.interestRate) || 0,
+        totalInstallments: d.totalInstallments || 1,
+      });
+    }
+  });
+
+  // Add unpaid cards, loans and accounts from expenses table
+  expenses.filter(e => e.isActive && !e.isPaid).forEach(e => {
+    const amt = Number(e.amount) || 0;
+    if (amt > 0) {
+      const isCredit = e.category === 'credit_card';
+      const isLoan = e.category === 'loan';
+      const remainingCount = (e.totalInstallments && e.installmentNumber)
+        ? Math.max(1, e.totalInstallments - e.installmentNumber + 1)
+        : 1;
+      unifiedDebts.push({
+        id: `exp-${e.id}`,
+        name: isCredit ? `Cartão ${e.name}` : e.name,
+        remainingAmount: amt * remainingCount,
+        installmentAmount: amt,
+        interestRate: isCredit ? 13.5 : (isLoan ? 3.5 : 0),
+        totalInstallments: remainingCount,
+      });
+    }
+  });
+
+  // Sort unified debts by strategy
+  const sortedDebts = [...unifiedDebts].sort((a, b) => {
     if (strategy === 'snowball') return a.remainingAmount - b.remainingAmount;
     return b.interestRate - a.interestRate;
   });
@@ -401,16 +488,13 @@ function generateMonthlyReport(
   }
 
   report += `### ⏳ Parcelamentos, Cartões e Dívidas Futuras (O que você deve nos próximos meses):\n\n`;
-  if (activeDebts.length > 0) {
-    report += `| Dívida / Cartão | Parcela Atual | Parcelas Restantes | Juros a.m. | Saldo Devedor |\n`;
+  if (payoffQueue.length > 0) {
+    report += `| Dívida / Cartão | Parcela Atual | Prazo Estimado | Juros a.m. | Saldo Devedor |\n`;
     report += `|:---|---:|:---:|:---:|---:|\n`;
-    activeDebts.forEach(d => {
-      const remainingInst = d.totalInstallments && d.paidInstallments
-        ? `${d.totalInstallments - d.paidInstallments} de ${d.totalInstallments}`
-        : (d.installmentAmount > 0 ? `~${Math.ceil(d.remainingAmount / d.installmentAmount)} parcelas` : 'À vista');
-      report += `| **${d.name}** | ${formatCurrency(d.installmentAmount)} | ${remainingInst} | ${d.interestRate}% | **${formatCurrency(d.remainingAmount)}** |\n`;
+    payoffQueue.forEach(d => {
+      report += `| **${d.name}** | ${formatCurrency(d.installmentAmount)} | ${d.monthsToPayoff} meses | ${d.interestRate}% | **${formatCurrency(d.originalBalance)}** |\n`;
     });
-    report += `| **TOTAL DAS DÍVIDAS ATIVAS** | **${formatCurrency(snapshot.monthlyDebtPayments)}/mês** | - | - | **${formatCurrency(snapshot.totalDebt)}** |\n\n`;
+    report += `| **TOTAL DAS DÍVIDAS & CONTAS EM ABERTO** | **${formatCurrency(snapshot.monthlyDebtPayments)}/mês** | - | - | **${formatCurrency(snapshot.totalDebt)}** |\n\n`;
   } else {
     report += `*Parabéns! Você não possui dívidas ativas pendentes no sistema.*\n\n`;
   }
