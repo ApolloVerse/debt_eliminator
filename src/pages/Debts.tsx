@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Debt, Expense, Income } from '../types';
 import { Title, BrutalButton, BrutalCard, BrutalLabel, BrutalInput, BrutalSelect } from '../components/BrutalUI';
@@ -137,24 +137,68 @@ export const Debts = () => {
     }
   };
 
+  const monthScrollRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+
+  // Auto-scroll the active pill into view whenever selectedMonth changes
+  useEffect(() => {
+    if (!monthScrollRef.current) return;
+    const activeEl = monthScrollRef.current.querySelector<HTMLElement>('[data-active="true"]');
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [selectedMonth]);
+
+  const scrollMonths = (direction: 'left' | 'right') => {
+    if (monthScrollRef.current) {
+      monthScrollRef.current.scrollBy({
+        left: direction === 'left' ? -260 : 260,
+        behavior: 'smooth',
+      });
+    }
+  };
+
   const handlePrevMonth = () => {
     if (selectedMonth === 'all') {
       setSelectedMonth(currentMonthKey);
-      return;
+    } else {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const prevDate = new Date(year, month - 2, 1);
+      setSelectedMonth(`${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`);
     }
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const prevDate = new Date(year, month - 2, 1);
-    setSelectedMonth(`${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`);
+    scrollMonths('left');
   };
 
   const handleNextMonth = () => {
     if (selectedMonth === 'all') {
       setSelectedMonth(currentMonthKey);
-      return;
+    } else {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const nextDate = new Date(year, month, 1);
+      setSelectedMonth(`${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`);
     }
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const nextDate = new Date(year, month, 1);
-    setSelectedMonth(`${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`);
+    scrollMonths('right');
+  };
+
+  const onMouseDownMonthBar = (e: React.MouseEvent) => {
+    if (!monthScrollRef.current) return;
+    isDraggingRef.current = true;
+    startXRef.current = e.pageX - monthScrollRef.current.offsetLeft;
+    scrollLeftRef.current = monthScrollRef.current.scrollLeft;
+  };
+
+  const onMouseLeaveOrUpMonthBar = () => {
+    isDraggingRef.current = false;
+  };
+
+  const onMouseMoveMonthBar = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !monthScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - monthScrollRef.current.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    monthScrollRef.current.scrollLeft = scrollLeftRef.current - walk;
   };
 
   const fetchDebts = async () => {
@@ -1015,36 +1059,71 @@ export const Debts = () => {
       </div>
 
       {/* 🗓️ SELETOR DE MÊS (FILTRO POR MÊS - DESDE JANEIRO) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-sp-text-sec flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-sp-purple" /> Filtrar Dívidas e Contas por Mês
-          </span>
-          {selectedMonth !== 'all' && (
-            <span className="text-[10px] font-bold text-sp-purple">
-              Mês selecionado: {getMonthName(selectedMonth)}
+      <div className="space-y-2 bg-white/70 backdrop-blur-xs p-3 rounded-2xl border border-sp-border shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-sp-text-sec flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-sp-purple" /> Filtrar Dívidas e Contas por Mês
             </span>
-          )}
+            {selectedMonth !== 'all' && (
+              <span className="text-[10px] font-bold text-sp-purple bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                {getMonthName(selectedMonth)}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Dropdown Selector for immediate jump without scrolling */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-sp-text-sec font-medium hidden sm:inline">Pular para:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="text-xs font-semibold bg-white border border-sp-border rounded-xl px-2.5 py-1 text-sp-text-dark hover:border-sp-purple focus:outline-none focus:ring-2 focus:ring-sp-purple/20 transition-all cursor-pointer shadow-xs"
+              aria-label="Selecionar mês diretamente"
+            >
+              <option value="all">Todos os Meses</option>
+              {monthOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} {opt.isCurrent ? '(Atual)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Previous month button */}
           <button
+            type="button"
             onClick={handlePrevMonth}
-            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-50 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs"
-            title="Mês anterior"
+            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-100 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Mês anterior / Rolar esquerda"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar flex-1">
+          <div
+            ref={monthScrollRef}
+            onMouseDown={onMouseDownMonthBar}
+            onMouseLeave={onMouseLeaveOrUpMonthBar}
+            onMouseUp={onMouseLeaveOrUpMonthBar}
+            onMouseMove={onMouseMoveMonthBar}
+            onWheel={(e) => {
+              if (monthScrollRef.current && e.deltaY !== 0) {
+                monthScrollRef.current.scrollLeft += e.deltaY;
+              }
+            }}
+            className="flex gap-2 overflow-x-auto py-1.5 scroll-smooth flex-1 select-none month-scrollbar cursor-grab active:cursor-grabbing"
+          >
             {/* Todos os Meses */}
             <button
+              type="button"
+              data-active={selectedMonth === 'all'}
               onClick={() => setSelectedMonth('all')}
               className={cn(
                 "font-bold text-xs py-2 px-4 rounded-full border transition-all duration-200 cursor-pointer shrink-0 select-none whitespace-nowrap",
                 selectedMonth === 'all'
-                  ? "bg-slate-900 border-transparent text-white shadow-sm"
+                  ? "bg-slate-900 border-transparent text-white shadow-sm ring-2 ring-slate-900/20"
                   : "bg-white border-sp-border text-sp-text-sec hover:text-sp-text-dark hover:border-sp-text-sec/40"
               )}
             >
@@ -1053,12 +1132,14 @@ export const Debts = () => {
 
             {monthOptions.map(opt => (
               <button
+                type="button"
                 key={opt.value}
+                data-active={selectedMonth === opt.value}
                 onClick={() => setSelectedMonth(opt.value)}
                 className={cn(
                   "font-semibold text-xs py-2 px-3.5 rounded-full border transition-all duration-200 cursor-pointer shrink-0 select-none whitespace-nowrap flex items-center gap-1.5",
                   selectedMonth === opt.value
-                    ? "bg-sp-purple border-transparent text-white shadow-sm font-bold"
+                    ? "bg-sp-purple border-transparent text-white shadow-sm font-bold ring-2 ring-sp-purple/20"
                     : opt.isCurrent
                     ? "bg-purple-50 border-purple-200 text-sp-purple hover:bg-purple-100"
                     : "bg-white border-sp-border text-sp-text-sec hover:text-sp-text-dark hover:border-sp-text-sec/40"
@@ -1079,9 +1160,10 @@ export const Debts = () => {
 
           {/* Next month button */}
           <button
+            type="button"
             onClick={handleNextMonth}
-            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-50 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs"
-            title="Próximo mês"
+            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-100 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Próximo mês / Rolar direita"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
