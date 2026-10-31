@@ -7,7 +7,8 @@ import { formatCurrency } from '../lib/utils';
 import {
   Plus, Pencil, Trash2, Landmark, CreditCard,
   AlertTriangle, CheckCircle2, Clock, Zap, ReceiptText,
-  WalletCards, BadgeCheck, ExternalLink, Calendar, AlertCircle
+  WalletCards, BadgeCheck, ExternalLink, Calendar, AlertCircle,
+  ChevronLeft, ChevronRight, Filter
 } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -49,8 +50,12 @@ const isCreditExpense = (e: Expense) =>
   e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft';
 
 export const Debts = () => {
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const [debts, setDebts] = useState<Debt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
   const [filter, setFilter] = useState<'Todos' | 'Pendentes' | 'Cartões' | 'Pagos' | 'Mensais' | 'Valor'>('Todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
@@ -64,6 +69,51 @@ export const Debts = () => {
   const rawDebtType = watch('type');
   const watchedCategory = watch('category');
   const debtType = getDebtBaseType(rawDebtType);
+
+  // Month navigation options: past 2 months, current, and next 10 months
+  const monthOptions: { value: string; label: string; isCurrent: boolean }[] = [];
+  for (let i = -2; i <= 10; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const rawLabel = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+    const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+    monthOptions.push({
+      value,
+      label,
+      isCurrent: value === currentMonthKey,
+    });
+  }
+
+  const getMonthName = (monthKey: string) => {
+    try {
+      const [year, month] = monthKey.split('-').map(Number);
+      const d = new Date(year, month - 1, 1);
+      const str = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    } catch {
+      return monthKey;
+    }
+  };
+
+  const handlePrevMonth = () => {
+    if (selectedMonth === 'all') {
+      setSelectedMonth(currentMonthKey);
+      return;
+    }
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);
+    setSelectedMonth(`${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 'all') {
+      setSelectedMonth(currentMonthKey);
+      return;
+    }
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const nextDate = new Date(year, month, 1);
+    setSelectedMonth(`${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`);
+  };
 
   const fetchDebts = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -408,7 +458,9 @@ export const Debts = () => {
     category: string;
     bank?: string;
     dueDate: string;
+    monthKey: string;
     amount: number;
+    installmentAmount: number;
     totalAmount?: number;
     interestRate?: number;
     isPaid: boolean;
@@ -425,8 +477,10 @@ export const Debts = () => {
     itemType: 'debt',
     name: d.name,
     category: d.category || 'other',
-    dueDate: d.dueDate,
+    dueDate: d.dueDate || '',
+    monthKey: d.dueDate ? d.dueDate.slice(0, 7) : '',
     amount: d.remainingAmount,
+    installmentAmount: Number(d.installmentAmount || d.remainingAmount) || 0,
     totalAmount: d.totalAmount,
     interestRate: d.interestRate,
     isPaid: d.isPaid === true,
@@ -445,7 +499,9 @@ export const Debts = () => {
       category: e.category,
       bank: e.bank,
       dueDate: e.dueDate || '',
+      monthKey: e.dueDate ? e.dueDate.slice(0, 7) : '',
       amount: Number(e.amount) || 0,
+      installmentAmount: Number(e.amount) || 0,
       totalAmount: Number(e.amount) || 0,
       interestRate: meta.interestRate,
       isPaid: e.isPaid === true,
@@ -456,16 +512,44 @@ export const Debts = () => {
     };
   });
 
-  // Filter items based on selected tab
-  const allItems: UnifiedListItem[] =
-    filter === 'Cartões'
-      ? cardItems
-      : filter === 'Mensais'
-      ? debtItems.filter(d => d.category === 'monthly_bill')
-      : [...debtItems, ...cardItems];
+  const allItems: UnifiedListItem[] = [...debtItems, ...cardItems];
 
-  const filteredItems = allItems
+  // ── Monthly metrics calculation ───────────────────────────────────────────
+  const monthForMetrics = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
+  const monthItems = allItems.filter(item => {
+    if (item.category === 'monthly_bill') {
+      return !item.dueDate || item.dueDate.startsWith(monthForMetrics);
+    }
+    return item.dueDate && item.dueDate.startsWith(monthForMetrics);
+  });
+
+  const monthTotalAmount = monthItems.reduce(
+    (acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount),
+    0
+  );
+  const monthPendingAmount = monthItems
+    .filter(it => !it.isPaid)
+    .reduce((acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount), 0);
+  const monthPaidAmount = monthItems
+    .filter(it => it.isPaid)
+    .reduce((acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount), 0);
+  const monthPendingCount = monthItems.filter(it => !it.isPaid).length;
+  const monthPaidCount = monthItems.filter(it => it.isPaid).length;
+
+  // Filter items by Month first
+  const monthFilteredItems = allItems.filter(item => {
+    if (selectedMonth === 'all') return true;
+    if (item.category === 'monthly_bill') {
+      return !item.dueDate || item.dueDate.startsWith(selectedMonth);
+    }
+    return item.dueDate && item.dueDate.startsWith(selectedMonth);
+  });
+
+  // Then filter by Category / Tab
+  const filteredItems = monthFilteredItems
     .filter(item => {
+      if (filter === 'Cartões') return item.itemType === 'card_expense';
+      if (filter === 'Mensais') return item.category === 'monthly_bill';
       if (filter === 'Pagos') return item.isPaid === true;
       if (filter === 'Pendentes') return !item.isPaid;
       return true;
@@ -474,6 +558,8 @@ export const Debts = () => {
       if (filter === 'Valor') return b.amount - a.amount;
       // Pending first, paid last
       if (a.isPaid !== b.isPaid) return a.isPaid ? 1 : -1;
+      // Sort chronologically by due date
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       return 0;
     });
 
@@ -497,16 +583,16 @@ export const Debts = () => {
         <div>
           <Title subtitle="GESTÃO DE DÍVIDAS">Dívidas Ativas</Title>
           <p className="text-sm font-semibold text-sp-text-sec mt-1">
-            Controle unificado de dívidas, faturas de cartões e empréstimos.
+            Controle unificado de dívidas, faturas de cartões e parcelas por mês.
           </p>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards (Totais Gerais) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total em aberto (Dívidas + Cartões) */}
         <div className="bg-sp-purple text-white rounded-3xl p-6 shadow-md relative overflow-hidden md:col-span-1">
-          <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-1">TOTAL EM ABERTO</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-1">TOTAL GERAL EM ABERTO</p>
           <h2 className="text-3xl font-extrabold tracking-tight">{formatCurrency(totalCombinedDebt)}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/15 text-[11px] font-semibold text-white/90">
             <span>Dívidas: {formatCurrency(totalDebtBalance)}</span>
@@ -521,7 +607,7 @@ export const Debts = () => {
             <Clock className="w-5 h-5 text-amber-500" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-sp-text-sec">Pendentes</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-sp-text-sec">Pendentes (Geral)</p>
             <p className="text-2xl font-black text-amber-500">{pendingCount < 10 ? `0${pendingCount}` : pendingCount}</p>
             <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Dívidas e faturas a pagar</p>
           </div>
@@ -537,6 +623,160 @@ export const Debts = () => {
             <p className="text-2xl font-black text-emerald-500">{paidCount < 10 ? `0${paidCount}` : paidCount}</p>
             <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Quitadas este ciclo</p>
           </div>
+        </div>
+      </div>
+
+      {/* 📅 VALORES A PAGAR NO MÊS (CARD DE RESUMO MENSAL) */}
+      <div className="bg-white border border-sp-border rounded-3xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-sp-purple/10 text-sp-purple flex items-center justify-center">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-sp-text-dark leading-tight">
+                  Valores a Pagar {selectedMonth === 'all' ? `em ${getMonthName(currentMonthKey)} (Mês Atual)` : `em ${getMonthName(selectedMonth)}`}
+                </h3>
+                <p className="text-xs font-semibold text-sp-text-sec">
+                  {selectedMonth === 'all'
+                    ? 'Exibindo previsão deste mês · Selecione um mês no filtro abaixo para navegar'
+                    : `Compromissos e faturas com vencimento programado para este mês`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {selectedMonth !== 'all' ? (
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+            >
+              Ver Todos os Meses
+            </button>
+          ) : (
+            <button
+              onClick={() => setSelectedMonth(currentMonthKey)}
+              className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+            >
+              Filtrar Mês Atual
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Total a pagar no mês */}
+          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-sp-text-subtle mb-1">
+              Total a Pagar no Mês
+            </p>
+            <p className="text-2xl font-black text-sp-text-dark">
+              {formatCurrency(monthTotalAmount)}
+            </p>
+            <p className="text-[10px] font-semibold text-sp-text-sec mt-0.5">
+              {monthItems.length} {monthItems.length === 1 ? 'conta / fatura' : 'contas / faturas'}
+            </p>
+          </div>
+
+          {/* Pendente no mês */}
+          <div className="p-4 bg-amber-50/60 border border-amber-100 rounded-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
+              Pendente a Pagar
+            </p>
+            <p className="text-2xl font-black text-amber-600">
+              {formatCurrency(monthPendingAmount)}
+            </p>
+            <p className="text-[10px] font-semibold text-amber-700/80 mt-0.5">
+              {monthPendingCount} {monthPendingCount === 1 ? 'pendência restante' : 'pendências restantes'}
+            </p>
+          </div>
+
+          {/* Já pago no mês */}
+          <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+              Já Pago no Mês
+            </p>
+            <p className="text-2xl font-black text-emerald-600">
+              {formatCurrency(monthPaidAmount)}
+            </p>
+            <p className="text-[10px] font-semibold text-emerald-700/80 mt-0.5">
+              {monthPaidCount} {monthPaidCount === 1 ? 'conta quitada' : 'contas quitadas'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 🗓️ SELETOR DE MÊS (FILTRO POR MÊS) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-sp-text-sec flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-sp-purple" /> Filtrar Dívidas por Mês de Vencimento
+          </span>
+          {selectedMonth !== 'all' && (
+            <span className="text-[10px] font-bold text-sp-purple">
+              Mês selecionado: {getMonthName(selectedMonth)}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Previous month button */}
+          <button
+            onClick={handlePrevMonth}
+            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-50 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs"
+            title="Mês anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar flex-1">
+            {/* Todos os Meses */}
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className={cn(
+                "font-bold text-xs py-2 px-4 rounded-full border transition-all duration-200 cursor-pointer shrink-0 select-none whitespace-nowrap",
+                selectedMonth === 'all'
+                  ? "bg-slate-900 border-transparent text-white shadow-sm"
+                  : "bg-white border-sp-border text-sp-text-sec hover:text-sp-text-dark hover:border-sp-text-sec/40"
+              )}
+            >
+              Todos os Meses
+            </button>
+
+            {monthOptions.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setSelectedMonth(opt.value)}
+                className={cn(
+                  "font-semibold text-xs py-2 px-3.5 rounded-full border transition-all duration-200 cursor-pointer shrink-0 select-none whitespace-nowrap flex items-center gap-1.5",
+                  selectedMonth === opt.value
+                    ? "bg-sp-purple border-transparent text-white shadow-sm font-bold"
+                    : opt.isCurrent
+                    ? "bg-purple-50 border-purple-200 text-sp-purple hover:bg-purple-100"
+                    : "bg-white border-sp-border text-sp-text-sec hover:text-sp-text-dark hover:border-sp-text-sec/40"
+                )}
+              >
+                <span>{opt.label}</span>
+                {opt.isCurrent && (
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.2 rounded-full uppercase tracking-wider font-extrabold",
+                    selectedMonth === opt.value ? "bg-white/20 text-white" : "bg-purple-200 text-purple-800"
+                  )}>
+                    Atual
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Next month button */}
+          <button
+            onClick={handleNextMonth}
+            className="w-8 h-8 rounded-full border border-sp-border bg-white hover:bg-slate-50 flex items-center justify-center text-sp-text-sec hover:text-sp-purple shrink-0 transition-all cursor-pointer shadow-xs"
+            title="Próximo mês"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -567,7 +807,6 @@ export const Debts = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeUpcoming.map((item) => {
               const isExpense = item.sourceType === 'expense';
-              const bankInfo = isExpense ? getBankInfo(item.bank) : null;
 
               return (
                 <div
@@ -640,13 +879,13 @@ export const Debts = () => {
         )}
       </div>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs (Categoria / Status) */}
       <div className="flex gap-2.5 overflow-x-auto py-1 no-scrollbar">
         {[
-          { key: 'Todos',     label: 'Todos' },
-          { key: 'Pendentes', label: '⏳ A Pagar' },
+          { key: 'Todos',     label: selectedMonth === 'all' ? 'Todos' : 'Todos do Mês' },
+          { key: 'Pendentes', label: selectedMonth === 'all' ? '⏳ A Pagar' : '⏳ A Pagar no Mês' },
           { key: 'Cartões',   label: '💳 Cartões & Emprést.' },
-          { key: 'Pagos',     label: '✅ Pagos' },
+          { key: 'Pagos',     label: selectedMonth === 'all' ? '✅ Pagos' : '✅ Pagos no Mês' },
           { key: 'Mensais',   label: '📅 Mensais' },
           { key: 'Valor',     label: 'Por Valor' },
         ].map(opt => (
@@ -752,6 +991,11 @@ export const Debts = () => {
                     {debt.totalInstallments > 1 && (
                       <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-sp-text-sec uppercase tracking-wider">
                         {debt.paidInstallments}/{debt.totalInstallments} parcelas
+                      </span>
+                    )}
+                    {debt.installmentAmount > 0 && (
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-sp-purple uppercase tracking-wider">
+                        Parcela: {formatCurrency(debt.installmentAmount)}
                       </span>
                     )}
                   </div>
@@ -938,14 +1182,23 @@ export const Debts = () => {
             return null;
           })
         ) : (
-          <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl">
+          <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl space-y-3">
             <p className="text-sm font-semibold text-sp-text-sec">
-              {filter === 'Pagos' ? 'Nenhuma dívida ou fatura paga ainda.' :
-               filter === 'Pendentes' ? 'Nenhuma dívida ou fatura pendente! 🎉' :
-               filter === 'Cartões' ? 'Nenhum cartão ou empréstimo encontrado.' :
-               filter === 'Mensais' ? 'Nenhuma dívida mensal cadastrada.' :
-               'Nenhum item encontrado.'}
+              {filter === 'Pagos' ? `Nenhum pagamento registrado para ${selectedMonth === 'all' ? 'o período geral' : getMonthName(selectedMonth)}.` :
+               filter === 'Pendentes' ? `Nenhuma pendência encontrada para ${selectedMonth === 'all' ? 'o período geral' : getMonthName(selectedMonth)}! 🎉` :
+               filter === 'Cartões' ? `Nenhum cartão ou empréstimo encontrado para ${selectedMonth === 'all' ? 'o período' : getMonthName(selectedMonth)}.` :
+               filter === 'Mensais' ? `Nenhuma dívida mensal encontrada para ${selectedMonth === 'all' ? 'o período' : getMonthName(selectedMonth)}.` :
+               `Nenhuma dívida ou fatura encontrada para ${selectedMonth === 'all' ? 'o filtro atual' : getMonthName(selectedMonth)}.`}
             </p>
+            {selectedMonth !== 'all' && (
+              <button
+                onClick={() => setSelectedMonth('all')}
+                className="text-xs font-bold text-sp-purple bg-white border border-sp-purple/30 hover:bg-sp-purple/5 px-4 py-2 rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Ver todas as dívidas e meses
+              </button>
+            )}
           </div>
         )}
       </div>
