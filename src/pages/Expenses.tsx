@@ -8,7 +8,8 @@ import { formatCurrency, parseCurrency, addMonthsToDate, cn } from "../lib/utils
 import { 
   Plus, Pencil, Trash2, ShoppingCart, Home, Car, Heart, GraduationCap, 
   Zap, Tv, MoreHorizontal, Calendar, CheckCircle2, Clock, TrendingDown, 
-  Repeat, CreditCard, Landmark, ChevronDown, ChevronUp, Percent, ChevronRight
+  Repeat, CreditCard, Landmark, ChevronDown, ChevronUp, Percent, ChevronRight,
+  ChevronLeft, Filter, AlertTriangle
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
@@ -165,6 +166,48 @@ export const Expenses = () => {
   const [tab, setTab] = useState<"normal" | "cards" | "loans" | "pending" | "paid" | "future" | "all">("normal");
   const [selectedBank, setSelectedBank] = useState<string>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // Month filtering state (YYYY-MM)
+  const currentMonthKey = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+
+  const formatMonthLabel = (monthKey: string) => {
+    if (!monthKey || monthKey === 'all') return 'Todos os Meses';
+    const [yearStr, monthStr] = monthKey.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10) - 1;
+    const MONTH_NAMES = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    return `${MONTH_NAMES[month]} de ${year}`;
+  };
+
+  const getAdjacentMonth = (monthKey: string, delta: number) => {
+    const base = monthKey === 'all' ? currentMonthKey : monthKey;
+    const [yearStr, monthStr] = base.split('-');
+    let year = parseInt(yearStr, 10);
+    let month = parseInt(monthStr, 10) + delta;
+    if (month > 12) {
+      month = 1;
+      year++;
+    } else if (month < 1) {
+      month = 12;
+      year--;
+    }
+    return `${year}-${String(month).padStart(2, '0')}`;
+  };
+
+  const handlePrevMonth = () => {
+    setSelectedMonth(prev => getAdjacentMonth(prev, -1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => getAdjacentMonth(prev, 1));
+  };
 
   // Expanded cards & loans state
   const [expandedCardKeys, setExpandedCardKeys] = useState<Record<string, boolean>>({});
@@ -576,15 +619,60 @@ export const Expenses = () => {
   const isNormalExpense = (e: Expense) => !isCardExpense(e) && !isLoanExpense(e);
   const isFuture = (e: Expense) => !!(e.dueDate && e.dueDate > today && !e.isPaid);
 
+  // Filter rule:
+  // "mostra as dividas dentro desse mes e as contas diversas que tem o vencimento de pagamento ate o mes que esta sendo filtrado e quando se troca o mes ele so mostra as dividas do mes pesquisado"
+  const isExpenseInMonthFilter = (e: Expense, monthKey: string): boolean => {
+    if (!monthKey || monthKey === 'all') return true;
+
+    const isDebt = isCardExpense(e) || isLoanExpense(e);
+
+    if (isDebt) {
+      // Dívidas (cartões e empréstimos): APENAS do mês pesquisado!
+      if (e.dueDate) {
+        return e.dueDate.startsWith(monthKey);
+      }
+      return true;
+    } else {
+      // Contas diversas: com vencimento de pagamento ATÉ o mês filtrado
+      if (e.dueDate) {
+        const expMonth = e.dueDate.slice(0, 7);
+        // Vence no mês filtrado: mostra sempre
+        if (expMonth === monthKey) return true;
+        // Venceu em mês anterior: mostra se AINDA NÃO foi paga
+        if (expMonth < monthKey && !e.isPaid) return true;
+        // Vencimento após o mês filtrado: não mostra
+        return false;
+      }
+      return true;
+    }
+  };
+
+  const filteredExpenses = expenses.filter(e => isExpenseInMonthFilter(e, selectedMonth));
+
   // ── GROUPING CARDS & OVERDRAFTS ─────────────────────────────────────────────
   const getCardGroups = (): CardGroup[] => {
     const cardExpenses = expenses.filter(isCardExpense);
     const groupsMap = new Map<string, CardGroup>();
 
+    // If a month is selected, find which cards have invoices in that month
+    const cardKeysInMonth = new Set<string>();
+    if (selectedMonth !== 'all') {
+      cardExpenses.forEach(exp => {
+        if (exp.dueDate && exp.dueDate.startsWith(selectedMonth)) {
+          const bank = exp.bank || 'outro';
+          const baseName = cleanBaseName(exp.name) || (exp.category === 'overdraft' ? 'Cheque Especial' : 'Fatura Cartão');
+          cardKeysInMonth.add(`${bank}__${baseName.toLowerCase()}`);
+        }
+      });
+    }
+
     cardExpenses.forEach(exp => {
       const bank = exp.bank || 'outro';
       const baseName = cleanBaseName(exp.name) || (exp.category === 'overdraft' ? 'Cheque Especial' : 'Fatura Cartão');
       const key = `${bank}__${baseName.toLowerCase()}`;
+
+      // If month is filtered, only include cards that have an invoice in this specific month
+      if (selectedMonth !== 'all' && !cardKeysInMonth.has(key)) return;
 
       const meta = extractExpenseMeta(exp);
       const limit = Number(exp.cardLimit) || 0;
@@ -616,10 +704,19 @@ export const Expenses = () => {
 
     const groups = Array.from(groupsMap.values()).map(grp => {
       grp.invoices.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-      grp.unpaidInvoices = grp.invoices.filter(i => !i.isPaid);
-      grp.paidInvoices = grp.invoices.filter(i => !!i.isPaid);
-      grp.currentInvoice = grp.unpaidInvoices[0] || grp.invoices[grp.invoices.length - 1] || null;
-      grp.totalCommitted = grp.unpaidInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+      
+      if (selectedMonth !== 'all') {
+        const monthInv = grp.invoices.find(i => i.dueDate && i.dueDate.startsWith(selectedMonth)) || null;
+        grp.currentInvoice = monthInv;
+        grp.unpaidInvoices = monthInv && !monthInv.isPaid ? [monthInv] : [];
+        grp.paidInvoices = monthInv && monthInv.isPaid ? [monthInv] : [];
+        grp.totalCommitted = Number(monthInv?.amount) || 0;
+      } else {
+        grp.unpaidInvoices = grp.invoices.filter(i => !i.isPaid);
+        grp.paidInvoices = grp.invoices.filter(i => !!i.isPaid);
+        grp.currentInvoice = grp.unpaidInvoices[0] || grp.invoices[grp.invoices.length - 1] || null;
+        grp.totalCommitted = grp.unpaidInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+      }
       grp.availableLimit = Math.max(0, grp.cardLimit - grp.totalCommitted);
       grp.usagePct = grp.cardLimit > 0 ? Math.min(100, Math.round((grp.totalCommitted / grp.cardLimit) * 100)) : 0;
       return grp;
@@ -633,10 +730,25 @@ export const Expenses = () => {
     const loanExpenses = expenses.filter(isLoanExpense);
     const groupsMap = new Map<string, LoanGroup>();
 
+    // If month is selected, find which loans have an installment in that month
+    const loanKeysInMonth = new Set<string>();
+    if (selectedMonth !== 'all') {
+      loanExpenses.forEach(exp => {
+        if (exp.dueDate && exp.dueDate.startsWith(selectedMonth)) {
+          const bank = exp.bank || 'outro';
+          const baseName = cleanBaseName(exp.name) || 'Empréstimo';
+          loanKeysInMonth.add(`${bank}__${baseName.toLowerCase()}`);
+        }
+      });
+    }
+
     loanExpenses.forEach(exp => {
       const bank = exp.bank || 'outro';
       const baseName = cleanBaseName(exp.name) || 'Empréstimo';
       const key = `${bank}__${baseName.toLowerCase()}`;
+
+      // If month is filtered, only include loans that have an installment in this specific month
+      if (selectedMonth !== 'all' && !loanKeysInMonth.has(key)) return;
 
       const meta = extractExpenseMeta(exp);
       const rate = meta.interestRate;
@@ -671,10 +783,19 @@ export const Expenses = () => {
 
     const groups = Array.from(groupsMap.values()).map(grp => {
       grp.installments.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
-      grp.unpaidInstallments = grp.installments.filter(i => !i.isPaid);
-      grp.paidInstallments = grp.installments.filter(i => !!i.isPaid);
-      grp.nextInstallment = grp.unpaidInstallments[0] || grp.installments[grp.installments.length - 1] || null;
-      grp.totalRemaining = grp.unpaidInstallments.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+      
+      if (selectedMonth !== 'all') {
+        const monthInst = grp.installments.find(i => i.dueDate && i.dueDate.startsWith(selectedMonth)) || null;
+        grp.nextInstallment = monthInst;
+        grp.unpaidInstallments = monthInst && !monthInst.isPaid ? [monthInst] : [];
+        grp.paidInstallments = monthInst && monthInst.isPaid ? [monthInst] : [];
+        grp.totalRemaining = Number(monthInst?.amount) || 0;
+      } else {
+        grp.unpaidInstallments = grp.installments.filter(i => !i.isPaid);
+        grp.paidInstallments = grp.installments.filter(i => !!i.isPaid);
+        grp.nextInstallment = grp.unpaidInstallments[0] || grp.installments[grp.installments.length - 1] || null;
+        grp.totalRemaining = grp.unpaidInstallments.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+      }
       grp.totalPaid = grp.paidInstallments.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
       grp.totalLoanAmount = grp.totalRemaining + grp.totalPaid;
       grp.progressPct = grp.totalLoanAmount > 0 
@@ -688,25 +809,25 @@ export const Expenses = () => {
 
   const cardGroups = getCardGroups();
   const loanGroups = getLoanGroups();
-  const normalList = expenses.filter(isNormalExpense);
+  const normalList = filteredExpenses.filter(isNormalExpense);
 
   const totalCardsLimit = cardGroups.reduce((acc, c) => acc + c.cardLimit, 0);
   const totalCardsNegative = cardGroups.reduce((acc, c) => acc + c.totalCommitted, 0);
   const totalCardsAvailable = Math.max(0, totalCardsLimit - totalCardsNegative);
 
-  const totalLoanRemaining = loanGroups.reduce((acc, l) => acc + l.totalRemaining, 0);
-  const totalPending = expenses.reduce((acc, e) => acc + (e.isPaid ? 0 : Number(e.amount) || 0), 0);
-  const totalPaid = expenses.reduce((acc, e) => acc + (e.isPaid ? Number(e.amount) || 0 : 0), 0);
-  const countFuture = expenses.filter(e => isFuture(e)).length;
+  const totalLoanRemaining = loanGroups.reduce((acc, l) => acc + (selectedMonth !== 'all' ? (Number(l.nextInstallment?.amount) || 0) : l.totalRemaining), 0);
+  const totalPending = filteredExpenses.reduce((acc, e) => acc + (e.isPaid ? 0 : Number(e.amount) || 0), 0);
+  const totalPaid = filteredExpenses.reduce((acc, e) => acc + (e.isPaid ? Number(e.amount) || 0 : 0), 0);
+  const countFuture = filteredExpenses.filter(e => isFuture(e)).length;
 
   const allTabs = [
     { id: "normal" as const, label: "📋 Despesas Normais", count: normalList.length },
     { id: "cards" as const, label: "💳 Somente Cartões", count: cardGroups.length },
     { id: "loans" as const, label: "🏦 Empréstimos", count: loanGroups.length },
-    { id: "pending" as const, label: "A Pagar", count: expenses.filter(e => !e.isPaid && !isFuture(e)).length },
-    { id: "paid" as const, label: "Pagas", count: expenses.filter(e => !!e.isPaid).length },
+    { id: "pending" as const, label: "A Pagar", count: filteredExpenses.filter(e => !e.isPaid && !isFuture(e)).length },
+    { id: "paid" as const, label: "Pagas", count: filteredExpenses.filter(e => !!e.isPaid).length },
     { id: "future" as const, label: "Futuras", count: countFuture },
-    { id: "all" as const, label: "Todas", count: expenses.length },
+    { id: "all" as const, label: "Todas", count: filteredExpenses.length },
   ];
 
   // Filtering for cards
@@ -1166,8 +1287,9 @@ export const Expenses = () => {
   const renderNormalItem = (expense: Expense) => {
     const isPaid = !!expense.isPaid;
     const isFut = isFuture(expense);
+    const isOverdueFromPastMonth = selectedMonth !== 'all' && !!expense.dueDate && expense.dueDate.slice(0, 7) < selectedMonth && !isPaid;
     const IconComp = catIcon(expense.category);
-    const bgClass = isPaid ? "bg-emerald-100 text-emerald-600" : catColor(expense.category);
+    const bgClass = isPaid ? "bg-emerald-100 text-emerald-600" : isOverdueFromPastMonth ? "bg-amber-100 text-amber-700" : catColor(expense.category);
     const isToggling = togglingId === expense.id;
 
     return (
@@ -1175,7 +1297,7 @@ export const Expenses = () => {
         key={expense.id} 
         className={cn(
           "border rounded-2xl p-3.5 sm:p-4 transition-all duration-200 relative group flex flex-col justify-between shadow-xs hover:shadow-md",
-          isPaid ? "bg-emerald-50/30 border-emerald-200/80" : isFut ? "bg-blue-50/25 border-blue-200/80" : "bg-white border-sp-border"
+          isPaid ? "bg-emerald-50/30 border-emerald-200/80" : isOverdueFromPastMonth ? "bg-amber-50/40 border-amber-300" : isFut ? "bg-blue-50/25 border-blue-200/80" : "bg-white border-sp-border"
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -1207,6 +1329,10 @@ export const Expenses = () => {
             {isPaid ? (
               <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
                 <CheckCircle2 className="w-2.5 h-2.5" /> Paga
+              </span>
+            ) : isOverdueFromPastMonth ? (
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1" title="Conta de mês anterior que permanece pendente de pagamento">
+                <AlertTriangle className="w-2.5 h-2.5 text-amber-700" /> Vencida {new Date(expense.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })}
               </span>
             ) : isFut ? (
               <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full">
@@ -1304,22 +1430,120 @@ export const Expenses = () => {
         </div>
       </div>
 
+      {/* ── BARRA DE FILTRO MENSAL ── */}
+      <div className="bg-white border border-sp-border rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Month Stepper Navigator */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-2xl p-1 shadow-2xs">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-2 hover:bg-white text-slate-700 hover:text-sp-purple rounded-xl transition-all cursor-pointer active:scale-95"
+                title="Mês anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-2 px-3 py-1 font-black text-xs sm:text-sm text-slate-900 min-w-[150px] justify-center">
+                <Calendar className="w-4 h-4 text-sp-purple shrink-0" />
+                <span className="capitalize">{formatMonthLabel(selectedMonth)}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-2 hover:bg-white text-slate-700 hover:text-sp-purple rounded-xl transition-all cursor-pointer active:scale-95"
+                title="Próximo mês"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Direct Month Picker */}
+            <input
+              type="month"
+              value={selectedMonth === 'all' ? '' : selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value || 'all')}
+              className="text-xs font-bold border border-slate-200 rounded-2xl px-3 py-2.5 bg-slate-50 hover:bg-white text-slate-800 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-sp-purple/20 shadow-2xs"
+              title="Selecionar mês e ano específico"
+            />
+          </div>
+
+          {/* Quick Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(currentMonthKey)}
+              className={cn(
+                "text-xs font-bold px-3.5 py-2 rounded-2xl border transition-all cursor-pointer shadow-2xs",
+                selectedMonth === currentMonthKey
+                  ? "bg-sp-purple text-white border-sp-purple"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+              )}
+            >
+              Mês Atual
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(selectedMonth === 'all' ? currentMonthKey : 'all')}
+              className={cn(
+                "text-xs font-bold px-3.5 py-2 rounded-2xl border transition-all cursor-pointer shadow-2xs",
+                selectedMonth === 'all'
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+              )}
+            >
+              {selectedMonth === 'all' ? 'Filtrar por Mês' : 'Ver Todos os Meses'}
+            </button>
+          </div>
+        </div>
+
+        {/* Informative Filter Status Banner */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-sp-text-sec">
+          <div className="flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-sp-purple shrink-0" />
+            {selectedMonth === 'all' ? (
+              <span>Exibindo <strong>todas</strong> as despesas cadastradas sem restrição de período.</span>
+            ) : (
+              <span>
+                Filtro ativo para <strong>{formatMonthLabel(selectedMonth)}</strong>: mostra as dívidas deste mês e contas diversas com vencimento até este mês.
+              </span>
+            )}
+          </div>
+          {selectedMonth !== 'all' && (
+            <span className="text-[10px] font-black uppercase tracking-wider text-sp-purple bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200/60">
+              {filteredExpenses.length} itens encontrados
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* TOP METRIC CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-sp-red-bg border border-red-100 rounded-2xl p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-sp-red-text mb-1">A Pagar Geral</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-sp-red-text mb-1">
+            {selectedMonth === 'all' ? 'A Pagar Geral' : 'A Pagar no Mês'}
+          </p>
           <p className="text-xl font-black text-sp-red-text">{formatCurrency(totalPending)}</p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 mb-1">Pagas</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 mb-1">
+            {selectedMonth === 'all' ? 'Pagas Geral' : 'Pagas no Mês'}
+          </p>
           <p className="text-xl font-black text-emerald-700">{formatCurrency(totalPaid)}</p>
         </div>
         <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-purple-700 mb-1">Faturas Cartões</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-purple-700 mb-1">
+            {selectedMonth === 'all' ? 'Faturas Cartões' : 'Faturas (Mês)'}
+          </p>
           <p className="text-xl font-black text-purple-700">{formatCurrency(totalCardsNegative)}</p>
         </div>
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-700 mb-1">Empréstimos Saldo</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-700 mb-1">
+            {selectedMonth === 'all' ? 'Empréstimos Saldo' : 'Empréstimos (Mês)'}
+          </p>
           <p className="text-xl font-black text-indigo-700">{formatCurrency(totalLoanRemaining)}</p>
         </div>
       </div>
@@ -1440,7 +1664,7 @@ export const Expenses = () => {
       {/* ── NORMAL & OTHER TABS ── */}
       {tab !== "cards" && tab !== "loans" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {expenses
+          {filteredExpenses
             .filter(e => {
               if (tab === "normal") return isNormalExpense(e);
               if (tab === "pending") return !e.isPaid && !isFuture(e);
@@ -1453,7 +1677,7 @@ export const Expenses = () => {
               renderNormalItem(e)
             ) : renderNormalItem(e))}
 
-          {expenses.filter(e => {
+          {filteredExpenses.filter(e => {
             if (tab === "normal") return isNormalExpense(e);
             if (tab === "pending") return !e.isPaid && !isFuture(e);
             if (tab === "paid") return !!e.isPaid;
@@ -1464,7 +1688,9 @@ export const Expenses = () => {
               <TrendingDown className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h4 className="font-bold text-sp-text-dark">Nenhum registro encontrado</h4>
               <p className="text-xs text-sp-text-sec mt-1 mb-6">
-                {tab === "normal" ? "Nenhuma despesa normal cadastrada ainda." : "Nenhum item nesta lista."}
+                {selectedMonth !== 'all' 
+                  ? `Nenhuma despesa ou conta encontrada para ${formatMonthLabel(selectedMonth)}.` 
+                  : (tab === "normal" ? "Nenhuma despesa normal cadastrada ainda." : "Nenhum item nesta lista.")}
               </p>
               <BrutalButton onClick={() => openAdd()} className="mx-auto w-max py-2 px-6">
                 Adicionar Despesa
