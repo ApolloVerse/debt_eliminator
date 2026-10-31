@@ -114,7 +114,7 @@ export function getFinancialSnapshot(
   const currentYearStr = String(now.getFullYear());
   const currentMonthKey = `${currentYearStr}-${currentMonthStr}`;
 
-  // 1. Direct debts from `debts` table (current & installments remaining)
+  // 1. Direct debts from `debts` table (total remaining balance)
   const directDebtsBalance = debts
     .filter(d => d.isActive && !d.isPaid)
     .reduce((acc, d) => {
@@ -128,37 +128,52 @@ export function getFinancialSnapshot(
       return acc;
     }, 0);
 
-  // 2. Unpaid expenses from `expenses` table (credit cards, loans, bills, future installments)
+  // 2. Unpaid credit cards and loans from expenses table — sum of UNPAID invoice/installment rows (1 row each)
+  // NOTE: In Expenses.tsx, each invoice/installment is a SEPARATE row — do NOT multiply!
   const expensesDebtsBalance = expenses
-    .filter(e => e.isActive && !e.isPaid)
-    .reduce((acc, e) => {
-      const amt = Number(e.amount) || 0;
-      if (e.totalInstallments && e.totalInstallments > 1 && e.installmentNumber) {
-        const remainingInst = Math.max(1, e.totalInstallments - e.installmentNumber + 1);
-        return acc + (amt * remainingInst);
-      }
-      return acc + amt;
-    }, 0);
+    .filter(e => e.isActive && !e.isPaid && (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
 
-  // Total debt encompassing ALL obligations (debts + expenses vigentes e futuras)
-  const totalDebt = directDebtsBalance + expensesDebtsBalance;
+  // 3. Overdue living bills (water, electricity, etc.) from past months still unpaid
+  const overdueFixedBills = expenses
+    .filter(e => {
+      if (!e.isActive || e.isPaid) return false;
+      if (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft') return false;
+      return e.dueDate && e.dueDate.slice(0, 7) < currentMonthKey;
+    })
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  // Total debt = debts balance + unpaid cards & loans + overdue bills
+  const totalDebt = directDebtsBalance + expensesDebtsBalance + overdueFixedBills;
 
   // Real operating monthly income for CURRENT month only (excluding caixinhas and other-month bonuses)
   const currentMonthIncomeData = calculateIncomeForMonth(incomes, currentMonthKey);
   const monthlyIncome = currentMonthIncomeData.total;
 
-  // Living fixed expenses (non-credit)
+  // Monthly living fixed expenses — only expenses due THIS month (not all past/future months)
   const monthlyFixedExpenses = expenses
-    .filter(e => e.isActive && !(e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+    .filter(e => {
+      if (!e.isActive || (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft')) return false;
+      // Has dueDate: only this month
+      if (e.dueDate) return e.dueDate.startsWith(currentMonthKey);
+      // No dueDate: recurrence-based (always shows monthly)
+      return !!e.recurrenceDay;
+    })
     .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
 
-  // Monthly debt / credit commitments
+  // Monthly debt / credit commitments: installments from debts table + cards/loans due this month
   const debtsInstallments = debts
     .filter(d => d.isActive && !d.isPaid)
     .reduce((acc, d) => acc + (Number(d.installmentAmount || d.remainingAmount) || 0), 0);
 
   const creditCardExpenses = expenses
-    .filter(e => e.isActive && !e.isPaid && (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft'))
+    .filter(e => {
+      if (!e.isActive || e.isPaid) return false;
+      if (!(e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft')) return false;
+      // Only include if due this month or no dueDate (recurrent)
+      if (e.dueDate) return e.dueDate.startsWith(currentMonthKey);
+      return !!e.recurrenceDay;
+    })
     .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
 
   const monthlyDebtPayments = debtsInstallments + creditCardExpenses;
@@ -449,9 +464,16 @@ function generateMonthlyReport(
   const now = new Date();
   const currentMonthIdx = now.getMonth();
   const currentYear = now.getFullYear();
+  const currentMonthKey = `${currentYear}-${String(currentMonthIdx + 1).padStart(2, '0')}`;
 
   const activeIncomes = incomes.filter(i => i.isActive);
-  const activeExpenses = expenses.filter(e => e.isActive);
+  // Only expenses due in current month (not all months)
+  const activeExpenses = expenses.filter(e => {
+    if (!e.isActive) return false;
+    if (e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft') return false;
+    if (e.dueDate) return e.dueDate.startsWith(currentMonthKey);
+    return !!e.recurrenceDay;
+  });
   const activeDebts = debts.filter(d => d.isActive && !d.isPaid);
 
   let report = `# 📋 RELATÓRIO FINANCEIRO COMPLETO & PLANO DE ELIMINAÇÃO DE DÍVIDAS\n\n`;
@@ -479,8 +501,7 @@ function generateMonthlyReport(
     report += `> ✅ **CENÁRIO ESTÁVEL:** Você possui saldo livre positivo de ${formatCurrency(snapshot.freeCash)}/mês. Com o método deste plano, sua quitação será acelerada com grande economia em juros.\n\n`;
   }
 
-  // Current month key
-  const currentMonthKey = `${currentYear}-${String(currentMonthIdx + 1).padStart(2, '0')}`;
+  // Current month key (already declared above)
   const currentMonthIncomeData = calculateIncomeForMonth(incomes, currentMonthKey);
   const currentMonthIncomes = currentMonthIncomeData.items;
 
