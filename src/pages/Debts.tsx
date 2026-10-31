@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Debt, Expense } from '../types';
+import { Debt, Expense, Income } from '../types';
 import { Title, BrutalButton, BrutalCard, BrutalLabel, BrutalInput, BrutalSelect } from '../components/BrutalUI';
 import { Modal } from '../components/Modal';
 import { formatCurrency } from '../lib/utils';
@@ -8,7 +8,8 @@ import {
   Plus, Pencil, Trash2, Landmark, CreditCard,
   AlertTriangle, CheckCircle2, Clock, Zap, ReceiptText,
   WalletCards, BadgeCheck, ExternalLink, Calendar, AlertCircle,
-  ChevronLeft, ChevronRight, Filter
+  ChevronLeft, ChevronRight, Filter, TrendingUp, DollarSign,
+  ArrowUpRight, ArrowDownRight, Scale
 } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -55,6 +56,7 @@ export const Debts = () => {
 
   const [debts, setDebts] = useState<Debt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
   const [filter, setFilter] = useState<'Todos' | 'Pendentes' | 'Cartões' | 'Pagos' | 'Mensais' | 'Valor'>('Todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -119,12 +121,14 @@ export const Debts = () => {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) return;
-    const [debtsRes, expensesRes] = await Promise.all([
+    const [debtsRes, expensesRes, incomesRes] = await Promise.all([
       supabase.from('debts').select('*').eq('userId', user.id).eq('isActive', true),
       supabase.from('expenses').select('*').eq('userId', user.id).eq('isActive', true),
+      supabase.from('incomes').select('*').eq('userId', user.id).eq('isActive', true),
     ]);
     if (debtsRes.data) setDebts(debtsRes.data as Debt[]);
     if (expensesRes.data) setExpenses(expensesRes.data as Expense[]);
+    if (incomesRes.data) setIncomes(incomesRes.data as Income[]);
   };
 
   useEffect(() => {
@@ -514,8 +518,9 @@ export const Debts = () => {
 
   const allItems: UnifiedListItem[] = [...debtItems, ...cardItems];
 
-  // ── Monthly metrics calculation ───────────────────────────────────────────
+  // ── Monthly metrics calculation (Dívidas + Receitas) ──────────────────────
   const monthForMetrics = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
+
   const monthItems = allItems.filter(item => {
     if (item.category === 'monthly_bill') {
       return !item.dueDate || item.dueDate.startsWith(monthForMetrics);
@@ -535,6 +540,47 @@ export const Debts = () => {
     .reduce((acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount), 0);
   const monthPendingCount = monthItems.filter(it => !it.isPaid).length;
   const monthPaidCount = monthItems.filter(it => it.isPaid).length;
+
+  // Monthly Income Calculation for target month
+  const getMonthlyIncomeForMonth = (targetMonthKey: string) => {
+    return incomes
+      .filter(i => {
+        // Exclude blocked bank boxes (they cannot be used to pay current obligations)
+        if (i.category === 'bank_box' && i.boxStatus === 'blocked') return false;
+        if (i.expectedDate) {
+          return i.expectedDate.startsWith(targetMonthKey);
+        }
+        return i.frequency === 'monthly' || i.frequency === 'weekly' || i.frequency === 'biweekly';
+      })
+      .reduce((acc, i) => {
+        const amt = Number(i.amount) || 0;
+        if (i.frequency === 'weekly' && !i.expectedDate) return acc + (amt * 4);
+        if (i.frequency === 'biweekly' && !i.expectedDate) return acc + (amt * 2);
+        return acc + amt;
+      }, 0);
+  };
+
+  const getMonthlyIncomeReceived = (targetMonthKey: string) => {
+    return incomes
+      .filter(i => {
+        if (i.category === 'bank_box' && i.boxStatus === 'blocked') return false;
+        if (!i.isReceived) return false;
+        if (i.expectedDate) {
+          return i.expectedDate.startsWith(targetMonthKey);
+        }
+        return i.frequency === 'monthly' || i.frequency === 'weekly' || i.frequency === 'biweekly';
+      })
+      .reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  };
+
+  const monthIncome = getMonthlyIncomeForMonth(monthForMetrics);
+  const monthIncomeReceived = getMonthlyIncomeReceived(monthForMetrics);
+  const monthIncomePending = Math.max(0, monthIncome - monthIncomeReceived);
+
+  // Balance between income and debt in that month
+  const monthBalance = monthIncome - monthTotalAmount;
+  // Debt commitment ratio (% of income that goes to debts)
+  const debtCommitmentPct = monthIncome > 0 ? (monthTotalAmount / monthIncome) * 100 : 0;
 
   // Filter items by Month first
   const monthFilteredItems = allItems.filter(item => {
@@ -583,7 +629,7 @@ export const Debts = () => {
         <div>
           <Title subtitle="GESTÃO DE DÍVIDAS">Dívidas Ativas</Title>
           <p className="text-sm font-semibold text-sp-text-sec mt-1">
-            Controle unificado de dívidas, faturas de cartões e parcelas por mês.
+            Controle unificado de dívidas, faturas de cartões e relação com receitas por mês.
           </p>
         </div>
       </div>
@@ -626,82 +672,220 @@ export const Debts = () => {
         </div>
       </div>
 
-      {/* 📅 VALORES A PAGAR NO MÊS (CARD DE RESUMO MENSAL) */}
+      {/* 📅 VALORES DO MÊS: RELAÇÃO RECEITAS X DÍVIDAS */}
       <div className="bg-white border border-sp-border rounded-3xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-sp-purple/10 text-sp-purple flex items-center justify-center">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div>
+        {/* Header of the Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-sp-purple/10 text-sp-purple flex items-center justify-center shrink-0">
+              <Scale className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-extrabold text-sp-text-dark leading-tight">
-                  Valores a Pagar {selectedMonth === 'all' ? `em ${getMonthName(currentMonthKey)} (Mês Atual)` : `em ${getMonthName(selectedMonth)}`}
+                  Balanço em {selectedMonth === 'all' ? `${getMonthName(currentMonthKey)} (Mês Atual)` : getMonthName(selectedMonth)}
                 </h3>
-                <p className="text-xs font-semibold text-sp-text-sec">
-                  {selectedMonth === 'all'
-                    ? 'Exibindo previsão deste mês · Selecione um mês no filtro abaixo para navegar'
-                    : `Compromissos e faturas com vencimento programado para este mês`}
-                </p>
+                {selectedMonth === 'all' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-sp-text-sec uppercase tracking-wider">
+                    Visão Mês Atual
+                  </span>
+                )}
               </div>
+              <p className="text-xs font-semibold text-sp-text-sec mt-0.5">
+                Relação entre o total que você vai receber e as dívidas a pagar no mês
+              </p>
             </div>
           </div>
 
-          {selectedMonth !== 'all' ? (
-            <button
-              onClick={() => setSelectedMonth('all')}
-              className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Link
+              href="/incomes"
+              className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
             >
-              Ver Todos os Meses
-            </button>
-          ) : (
-            <button
-              onClick={() => setSelectedMonth(currentMonthKey)}
-              className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
-            >
-              Filtrar Mês Atual
-            </button>
-          )}
+              <TrendingUp className="w-3.5 h-3.5" />
+              Receitas
+            </Link>
+
+            {selectedMonth !== 'all' ? (
+              <button
+                onClick={() => setSelectedMonth('all')}
+                className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+              >
+                Ver Todos os Meses
+              </button>
+            ) : (
+              <button
+                onClick={() => setSelectedMonth(currentMonthKey)}
+                className="text-xs font-bold text-sp-purple bg-sp-purple/10 hover:bg-sp-purple/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+              >
+                Filtrar Mês Atual
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Total a pagar no mês */}
-          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-sp-text-subtle mb-1">
-              Total a Pagar no Mês
-            </p>
-            <p className="text-2xl font-black text-sp-text-dark">
-              {formatCurrency(monthTotalAmount)}
-            </p>
-            <p className="text-[10px] font-semibold text-sp-text-sec mt-0.5">
-              {monthItems.length} {monthItems.length === 1 ? 'conta / fatura' : 'contas / faturas'}
-            </p>
-          </div>
-
-          {/* Pendente no mês */}
-          <div className="p-4 bg-amber-50/60 border border-amber-100 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
-              Pendente a Pagar
-            </p>
-            <p className="text-2xl font-black text-amber-600">
-              {formatCurrency(monthPendingAmount)}
-            </p>
-            <p className="text-[10px] font-semibold text-amber-700/80 mt-0.5">
-              {monthPendingCount} {monthPendingCount === 1 ? 'pendência restante' : 'pendências restantes'}
+        {/* 4 Cards Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 1. Receita a Receber */}
+          <div className="p-4 bg-emerald-50/50 border border-emerald-100/80 rounded-2xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  A Receber (Receita)
+                </p>
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-emerald-700">
+                {formatCurrency(monthIncome)}
+              </p>
+            </div>
+            <p className="text-[10px] font-semibold text-emerald-700/80 mt-2 pt-2 border-t border-emerald-100">
+              {monthIncomeReceived > 0 ? (
+                <span>Já recebido: <strong>{formatCurrency(monthIncomeReceived)}</strong></span>
+              ) : (
+                <span>{monthIncome > 0 ? 'Aguardando recebimento' : 'Nenhuma receita'}</span>
+              )}
             </p>
           </div>
 
-          {/* Já pago no mês */}
-          <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
-              Já Pago no Mês
+          {/* 2. Dívidas a Pagar */}
+          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-sp-text-subtle">
+                  A Pagar (Dívidas)
+                </p>
+                <ReceiptText className="w-3.5 h-3.5 text-sp-purple" />
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-sp-text-dark">
+                {formatCurrency(monthTotalAmount)}
+              </p>
+            </div>
+            <p className="text-[10px] font-semibold text-sp-text-sec mt-2 pt-2 border-t border-slate-200/60">
+              {monthPendingAmount > 0 ? (
+                <span>Pendente: <strong className="text-amber-600">{formatCurrency(monthPendingAmount)}</strong> ({monthPendingCount})</span>
+              ) : monthTotalAmount > 0 ? (
+                <span className="text-emerald-600 font-bold">Tudo quitado este mês! 🎉</span>
+              ) : (
+                <span>Nenhuma conta no mês</span>
+              )}
             </p>
-            <p className="text-2xl font-black text-emerald-600">
-              {formatCurrency(monthPaidAmount)}
+          </div>
+
+          {/* 3. Saldo / Balanço do Mês */}
+          <div className={cn(
+            "p-4 rounded-2xl border flex flex-col justify-between transition-all",
+            monthBalance >= 0
+              ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+              : "bg-sp-red-bg border-red-200 text-sp-red-text"
+          )}>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className={cn("text-[10px] font-bold uppercase tracking-wider", monthBalance >= 0 ? "text-emerald-700" : "text-sp-red-text")}>
+                  {monthBalance >= 0 ? 'Saldo Livre (Sobra)' : 'Déficit (Falta)'}
+                </p>
+                {monthBalance >= 0 ? (
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <ArrowDownRight className="w-3.5 h-3.5 text-sp-red-text" />
+                )}
+              </div>
+              <p className={cn("text-xl sm:text-2xl font-black", monthBalance >= 0 ? "text-emerald-700" : "text-sp-red-text")}>
+                {monthBalance >= 0 ? `+ ${formatCurrency(monthBalance)}` : `- ${formatCurrency(Math.abs(monthBalance))}`}
+              </p>
+            </div>
+            <p className={cn("text-[10px] font-semibold mt-2 pt-2 border-t", monthBalance >= 0 ? "border-emerald-200/60 text-emerald-700/90" : "border-red-200 text-sp-red-text")}>
+              {monthBalance >= 0 ? 'Sobra após pagar dívidas' : 'Falta para cobrir dívidas'}
             </p>
-            <p className="text-[10px] font-semibold text-emerald-700/80 mt-0.5">
-              {monthPaidCount} {monthPaidCount === 1 ? 'conta quitada' : 'contas quitadas'}
+          </div>
+
+          {/* 4. Comprometimento da Renda */}
+          <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-2xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-sp-purple">
+                  Comprometimento
+                </p>
+                <Zap className="w-3.5 h-3.5 text-sp-purple" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-xl sm:text-2xl font-black text-sp-purple">
+                  {monthIncome > 0 ? `${Math.round(debtCommitmentPct)}%` : '—'}
+                </p>
+                {monthIncome > 0 && (
+                  <span className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
+                    debtCommitmentPct <= 30
+                      ? "bg-emerald-100 text-emerald-800"
+                      : debtCommitmentPct <= 60
+                      ? "bg-blue-100 text-blue-800"
+                      : debtCommitmentPct <= 100
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-red-100 text-red-800 font-extrabold"
+                  )}>
+                    {debtCommitmentPct <= 30 ? 'Ótimo' : debtCommitmentPct <= 60 ? 'Saudável' : debtCommitmentPct <= 100 ? 'Atenção' : 'Déficit'}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-[10px] font-semibold text-sp-purple/80 mt-2 pt-2 border-t border-purple-100">
+              {monthIncome > 0 ? 'Da receita vai para dívidas' : 'Cadastre sua receita'}
             </p>
+          </div>
+        </div>
+
+        {/* Barra comparativa de Relação Receita vs Dívidas */}
+        <div className="mt-4 p-3.5 bg-slate-50 border border-slate-100 rounded-2xl">
+          <div className="flex justify-between items-center text-xs font-bold text-sp-text-sec mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-sp-purple inline-block" />
+              <span>Dívidas a Pagar: <strong className="text-sp-text-dark">{formatCurrency(monthTotalAmount)}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+              <span>Receita Prevista: <strong className="text-emerald-600">{formatCurrency(monthIncome)}</strong></span>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden flex">
+            <div
+              className={cn(
+                "h-full transition-all duration-500 rounded-full",
+                debtCommitmentPct > 100
+                  ? "bg-sp-red-text"
+                  : debtCommitmentPct > 70
+                  ? "bg-amber-500"
+                  : "bg-sp-purple"
+              )}
+              style={{ width: `${Math.min(100, Math.round(debtCommitmentPct))}%` }}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 mt-2 text-[11px] font-semibold">
+            <div>
+              {monthIncome === 0 ? (
+                <span className="text-amber-600 font-bold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Nenhuma receita cadastrada para este mês. Cadastre receitas para acompanhar o saldo restante.
+                </span>
+              ) : monthBalance >= 0 ? (
+                <span className="text-emerald-700 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Sua receita cobre todas as dívidas deste mês, sobrando {formatCurrency(monthBalance)} livres.
+                </span>
+              ) : (
+                <span className="text-sp-red-text font-bold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-sp-red-text" />
+                  Suas dívidas deste mês superam sua receita prevista em {formatCurrency(Math.abs(monthBalance))}.
+                </span>
+              )}
+            </div>
+            {monthIncome > 0 && (
+              <span className="text-sp-text-subtle shrink-0">
+                {Math.round(debtCommitmentPct)}% da renda comprometida
+              </span>
+            )}
           </div>
         </div>
       </div>
