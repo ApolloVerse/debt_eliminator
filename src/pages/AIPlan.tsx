@@ -45,6 +45,8 @@ export const AIPlan = () => {
   const [showFullReport, setShowFullReport] = useState(false);
   const [savedPlanContent, setSavedPlanContent] = useState<string | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<number | null>(0);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(true);
+  const [showAllTimelineMonths, setShowAllTimelineMonths] = useState(false);
   const [copied, setCopied] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -384,95 +386,223 @@ export const AIPlan = () => {
       {/* ═══════════════════════════════════════════ */}
       {/* 5. MONTHLY ACTION TIMELINE */}
       {/* ═══════════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════ */}
+      {/* 5. MONTHLY ACTION TIMELINE */}
+      {/* ═══════════════════════════════════════════ */}
       {plan && plan.monthlyActions.length > 0 && (
-        <div className="bg-white border border-sp-border rounded-3xl p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-sp-purple" />
-            <h3 className="font-extrabold text-base text-sp-text-dark">O Que Fazer a Cada Mês</h3>
-          </div>
-
-          <div className="space-y-2">
-            {plan.monthlyActions.slice(0, 18).map((action, i) => {
-              const isExpanded = expandedMonth === i;
-              const hasPaidOff = action.debtsPaidOff.length > 0;
-              const isFirst = i === 0;
-
-              return (
-                <div key={i}>
-                  <button
-                    onClick={() => setExpandedMonth(isExpanded ? null : i)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left cursor-pointer",
-                      isFirst ? "bg-sp-purple-light border border-sp-purple/20" :
-                      hasPaidOff ? "bg-emerald-50 border border-emerald-200" :
-                      "bg-slate-50 hover:bg-slate-100"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
-                      isFirst ? "bg-sp-purple text-white" :
-                      hasPaidOff ? "bg-emerald-500 text-white" :
-                      "bg-slate-200 text-sp-text-sec"
-                    )}>
-                      {hasPaidOff ? <CheckCircle className="w-4 h-4" /> : action.month}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-sp-text-dark">{action.monthLabel}</p>
-                      <p className="text-[10px] text-sp-text-sec truncate">
-                        {hasPaidOff
-                          ? `🎉 Quita: ${action.debtsPaidOff.join(', ')}`
-                          : `Pagando: ${action.debtsActive.slice(0, 2).join(', ')}${action.debtsActive.length > 2 ? '...' : ''}`
-                        }
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0 flex items-center gap-2">
-                      <p className="text-xs font-bold text-sp-text-dark">{formatCurrency(action.totalPayment)}</p>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-sp-text-subtle" /> : <ChevronDown className="w-4 h-4 text-sp-text-subtle" />}
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="ml-11 mt-1 mb-2 p-3 bg-slate-50 rounded-xl text-[11px] space-y-1.5 border border-slate-100">
-                      <div className="flex justify-between">
-                        <span className="text-sp-text-sec">💰 Pagamento total:</span>
-                        <span className="font-bold">{formatCurrency(action.totalPayment)}</span>
-                      </div>
-                      {action.extraPayment > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-sp-text-sec">⚡ Pagamento extra:</span>
-                          <span className="font-bold text-sp-purple">{formatCurrency(action.extraPayment)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-sp-text-sec">📉 Dívida restante:</span>
-                        <span className="font-bold">{formatCurrency(action.remainingDebt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sp-text-sec">💵 Total pago até aqui:</span>
-                        <span className="font-bold">{formatCurrency(action.cumulativePaid)}</span>
-                      </div>
-                      {action.debtsPaidOff.length > 0 && (
-                        <div className="mt-2 p-2 bg-emerald-50 rounded-lg text-emerald-700 font-bold">
-                          🎉 Dívida(s) eliminada(s): {action.debtsPaidOff.join(', ')}
-                        </div>
-                      )}
-                      {action.debtsActive.length > 0 && (
-                        <div className="text-sp-text-sec">
-                          📋 Dívidas ativas: {action.debtsActive.join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {plan.monthlyActions.length > 18 && (
-              <div className="text-center py-2">
-                <span className="text-xs font-bold text-sp-text-subtle">+ {plan.monthlyActions.length - 18} meses restantes</span>
+        <div className="bg-white border border-sp-border rounded-3xl p-5 sm:p-6 shadow-sm">
+          {/* Header with Title and Open/Close Mechanism */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-sp-purple flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5" />
               </div>
-            )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-base text-sp-text-dark">O Que Fazer a Cada Mês</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-sp-purple/10 text-sp-purple text-[10px] font-extrabold">
+                    {plan.monthlyActions.length} {plan.monthlyActions.length === 1 ? 'mês' : 'meses'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-sp-text-sec">
+                  Mecanismo: Receita ➔ (-) Desp. Fixas ➔ Disp. p/ Dívidas ➔ Quitação
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isTimelineOpen && plan.monthlyActions.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTimelineMonths(!showAllTimelineMonths)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-sp-text-sec bg-slate-50 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  {showAllTimelineMonths ? 'Ver 3 Primeiros' : `Ver Todos (${plan.monthlyActions.length})`}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsTimelineOpen(!isTimelineOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sp-purple/20 text-xs font-bold text-sp-purple bg-sp-purple-light hover:bg-sp-purple/15 transition-all cursor-pointer"
+              >
+                <span>{isTimelineOpen ? 'Recolher' : 'Visualizar'}</span>
+                {isTimelineOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
+
+          {/* Timeline Body when open */}
+          {isTimelineOpen ? (
+            <div className="space-y-3">
+              {/* Educational Rule Banner */}
+              <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div className="flex items-center gap-1.5 text-sp-text-sec">
+                  <span className="font-extrabold text-sp-text-dark">Regra de Ouro Mensal:</span>
+                  <span>Receita entra ➔ Separa despesas fixas de sobrevivência ➔ Sobra vai para dívidas</span>
+                </div>
+                <div className="text-[10px] text-sp-purple font-black uppercase tracking-wider">
+                  {strategy === 'snowball' ? 'Método Bola de Neve' : 'Método Avalanche'}
+                </div>
+              </div>
+
+              {/* Month Cards */}
+              <div className="space-y-2.5">
+                {(showAllTimelineMonths ? plan.monthlyActions : plan.monthlyActions.slice(0, 3)).map((action, i) => {
+                  const isExpanded = expandedMonth === i;
+                  const hasPaidOff = action.debtsPaidOff.length > 0;
+                  const isFirst = i === 0;
+
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        "rounded-2xl transition-all border",
+                        isExpanded ? "border-sp-purple/30 shadow-2xs bg-white" : "border-slate-100 bg-slate-50/70 hover:bg-slate-50"
+                      )}
+                    >
+                      <button
+                        onClick={() => setExpandedMonth(isExpanded ? null : i)}
+                        className="w-full flex items-center gap-3 p-3 text-left cursor-pointer"
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0",
+                          hasPaidOff ? "bg-emerald-500 text-white" :
+                          isFirst ? "bg-sp-purple text-white" :
+                          "bg-slate-200 text-slate-700"
+                        )}>
+                          {hasPaidOff ? <CheckCircle className="w-4 h-4" /> : action.month}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-extrabold text-sp-text-dark">{action.monthLabel}</p>
+                            {hasPaidOff && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                                🎉 Quita {action.debtsPaidOff[0]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                            <span className="text-emerald-700 font-bold">+{formatCurrency(action.monthlyIncome)}</span>
+                            <span>•</span>
+                            <span className="text-rose-600 font-bold">-{formatCurrency(action.monthlyFixedExpenses)} fixas</span>
+                            <span>•</span>
+                            <span className="text-indigo-600 font-bold">Disp: {formatCurrency(action.netAfterFixed)}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 flex items-center gap-2">
+                          <div>
+                            <p className="text-xs font-black text-sp-text-dark">{formatCurrency(action.totalPayment)}</p>
+                            <p className="text-[10px] text-slate-400">pago no mês</p>
+                          </div>
+                          {isExpanded ? <ChevronUp className="w-4 h-4 text-sp-purple" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="p-3.5 pt-0 border-t border-slate-100/80 text-[11px] space-y-3 mt-1">
+                          {/* 3 Step Waterfall Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              <span className="text-[10px] uppercase font-bold text-slate-500 block">1. Receita Prevista</span>
+                              <p className="text-xs font-black text-emerald-600">+{formatCurrency(action.monthlyIncome)}</p>
+                            </div>
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              <span className="text-[10px] uppercase font-bold text-slate-500 block">2. (-) Despesas Fixas</span>
+                              <p className="text-xs font-black text-rose-500">-{formatCurrency(action.monthlyFixedExpenses)}</p>
+                            </div>
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                              <span className="text-[10px] uppercase font-bold text-slate-500 block">3. (=) Disp. p/ Dívidas</span>
+                              <p className="text-xs font-black text-indigo-600">={formatCurrency(action.netAfterFixed)}</p>
+                            </div>
+                          </div>
+
+                          {/* Breakdown of Payments */}
+                          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-600">💳 Total Pago em Dívidas no Mês:</span>
+                              <span className="font-black text-slate-900">{formatCurrency(action.totalPayment)}</span>
+                            </div>
+                            {action.extraPayment > 0 && (
+                              <div className="flex justify-between items-center text-sp-purple font-bold">
+                                <span>⚡ Acelerador Extra (Amortização Prioritária):</span>
+                                <span>+{formatCurrency(action.extraPayment)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between items-center text-emerald-700 font-bold">
+                              <span>💰 Saldo Livre Restante de Caixa:</span>
+                              <span>+{formatCurrency(action.netSavings)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                              <span className="text-slate-600">📉 Dívida Restante Acumulada:</span>
+                              <span className="font-black text-rose-600">{formatCurrency(action.remainingDebt)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-slate-400">
+                              <span>💵 Total Acumulado Pago até aqui:</span>
+                              <span className="font-bold">{formatCurrency(action.cumulativePaid)}</span>
+                            </div>
+                          </div>
+
+                          {/* Celebratory badge if debt paid off */}
+                          {action.debtsPaidOff.length > 0 && (
+                            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>🎉 Dívida Eliminada neste mês: {action.debtsPaidOff.join(', ')}! A parcela liberada acelerará a próxima dívida.</span>
+                            </div>
+                          )}
+
+                          {action.debtsActive.length > 0 && (
+                            <p className="text-[10px] text-slate-500">
+                              📋 Dívidas ativas sendo pagas: {action.debtsActive.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Toggle to show more or less months */}
+              {plan.monthlyActions.length > 3 && (
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTimelineMonths(!showAllTimelineMonths)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-sp-text-dark rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 active:scale-98"
+                  >
+                    {showAllTimelineMonths ? (
+                      <>
+                        <ChevronUp className="w-4 h-4 text-sp-purple" />
+                        <span>Recolher para os 3 primeiros meses</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4 text-sp-purple" />
+                        <span>Visualizar todos os {plan.monthlyActions.length} meses do cronograma</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-xs font-medium text-sp-text-sec mb-2">
+                O cronograma contém {plan.monthlyActions.length} meses de execução calculados mês a mês.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsTimelineOpen(true)}
+                className="px-4 py-2 bg-sp-purple text-white rounded-xl text-xs font-bold hover:bg-sp-purple-dark transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <span>Visualizar Cronograma Completo</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

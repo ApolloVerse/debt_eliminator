@@ -103,10 +103,15 @@ Apresente tanto estratégias simples quanto sofisticadas:
   - Cash-Flow Matching: Sincronizar datas de vencimento de todas as contas para 3 a 5 dias após o recebimento do salário principal para zerar multas e juros de mora.
   - Reserva de Defesa Mínima (Buffer Anti-Recaída de R$ 500 a R$ 1.000 para emergências reais não forçarem novo endividamento).
 
-## 📅 6. CRONOGRAMA DE EXECUÇÃO MÊS A MÊS (PLANO EFICAZ)
+## 📅 6. CRONOGRAMA DE EXECUÇÃO MÊS A MÊS (PLANO EFICAZ & MECANISMO DE QUITAÇÃO)
 - Estratégia em execução: ${strategy === 'snowball' ? 'Bola de Neve (Menor Saldo Primeiro)' : 'Avalanche (Maior Taxa de Juros Primeiro)'}.
 - Ordem oficial de quitação das dívidas.
-- Cronograma mês a mês mostrando pagamento, amortização e redução do saldo devedor até zerar.
+- MECANISMO DE FLUXO MENSAL OBRIGATÓRIO: Explique detalhadamente como o usuário opera a cada mês:
+  1. Identifica a Receita Mensal.
+  2. Retira prioritariamente as Despesas Fixas essenciais (moradia, água, luz, comida) para blindar sua sobrevivência.
+  3. Com o saldo disponível restante, paga as parcelas mínimas de todas as dívidas e joga todo o excedente na dívida prioritária daquele mês.
+  4. Ao quitar a dívida prioritária, sua parcela no mês seguinte é somada à próxima dívida (efeito rolagem/bola de neve).
+- Apresente uma tabela de fluxo de caixa mês a mês com as colunas: Mês | Referência | Receita Prevista | (-) Desp. Fixas | (=) Disp. p/ Dívidas | (-) Dívidas Pagas | (=) Saldo Final | Saldo Devedor Restante | Quitações do Mês.
 - Previsão da data exata de liberdade financeira.
 
 ## 🛡️ 7. CHECKLIST DAS PRÓXIMAS 24 HORAS & GARANTIA DE SUCESSO

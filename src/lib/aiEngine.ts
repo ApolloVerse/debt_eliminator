@@ -34,11 +34,15 @@ export interface DebtPayoffItem {
 export interface MonthlyAction {
   month: number;
   monthLabel: string;
+  monthlyIncome: number;
+  monthlyFixedExpenses: number;
+  netAfterFixed: number;
   totalPayment: number;
+  extraPayment: number;
+  netSavings: number;
+  remainingDebt: number;
   debtsActive: string[];
   debtsPaidOff: string[];
-  remainingDebt: number;
-  extraPayment: number;
   cumulativePaid: number;
 }
 
@@ -101,6 +105,40 @@ export function calculateIncomeForMonth(incomes: Income[], targetMonthKey: strin
   const mainSource = sorted[0]?.name || 'Receitas Operacionais';
 
   return { total, mainSource, items };
+}
+
+// Helper to calculate exact living fixed expenses for ANY specific month key (e.g. "2026-11")
+export function calculateFixedExpensesForMonth(expenses: Expense[], targetMonthKey: string): {
+  total: number;
+  items: Expense[];
+} {
+  const livingExpenses = expenses.filter(
+    e => e.isActive && !(e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft')
+  );
+
+  // 1. Check if there are specific expenses stamped with dueDate for targetMonthKey
+  const monthSpecific = livingExpenses.filter(e => e.dueDate && e.dueDate.slice(0, 7) === targetMonthKey);
+
+  // 2. Recurrent expenses without dueDate but with recurrenceDay
+  const recurrent = livingExpenses.filter(e => !e.dueDate && !!e.recurrenceDay);
+
+  let items: Expense[] = [];
+  if (monthSpecific.length > 0) {
+    items = [...monthSpecific, ...recurrent];
+  } else {
+    // If no specific rows are stamped for this future month, project base active recurring living expenses
+    const seenNames = new Set<string>();
+    for (const e of livingExpenses) {
+      const clean = e.name.toLowerCase().trim();
+      if (!seenNames.has(clean)) {
+        seenNames.add(clean);
+        items.push(e);
+      }
+    }
+  }
+
+  const total = items.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  return { total, items };
 }
 
 export function getFinancialSnapshot(
@@ -316,45 +354,57 @@ export function generateEliminationPlan(
   const maxMonths = 360;
   let cumulativePaid = 0;
 
-  // Calculate extra cash available for debt acceleration each month
-  const extraCashPerMonth = Math.max(0, snapshot.freeCash);
-
   while (sim.some(d => d.balance > 0) && monthOffset < maxMonths) {
     monthOffset++;
     const monthDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    const targetMonthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel = `${SHORT_MONTHS[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
 
+    // 1. Receita operacional prevista para este mês específico
+    const mIncomeData = calculateIncomeForMonth(incomes, targetMonthKey);
+    const monthlyIncome = mIncomeData.total;
+
+    // 2. Despesas fixas essenciais deste mês específico (separadas prioritariamente)
+    const mExpensesData = calculateFixedExpensesForMonth(expenses, targetMonthKey);
+    const monthlyFixedExpenses = mExpensesData.total;
+
+    // 3. Valor disponível para dívidas após retirar despesas fixas
+    const netAfterFixed = Math.max(0, monthlyIncome - monthlyFixedExpenses);
+
     let totalPaymentThisMonth = 0;
+    let minPaymentsSum = 0;
     const debtsPaidOffThisMonth: string[] = [];
     const debtsActiveThisMonth: string[] = [];
-    let extraAvailable = extraCashPerMonth;
 
-    // Step 1: Apply interest and minimum payments
+    // Step 1: Aplica juros e parcela mínima para todas as dívidas ativas
     for (const debt of sim) {
       if (debt.balance <= 0) continue;
 
-      // Apply monthly interest
+      // Aplica juros mensais
       const interest = debt.balance * (debt.interestRate / 100);
       debt.totalInterest += interest;
       debt.balance += interest;
 
-      // Pay minimum installment
+      // Parcela mínima
       const minPayment = Math.min(debt.installment, debt.balance);
       debt.balance -= minPayment;
       debt.totalPaid += minPayment;
       totalPaymentThisMonth += minPayment;
+      minPaymentsSum += minPayment;
 
       if (debt.balance <= 0.01) {
         debt.balance = 0;
         debt.monthPaidOff = monthOffset;
         debtsPaidOffThisMonth.push(debt.name);
-        extraAvailable += debt.installment; // freed-up installment
       } else {
         debtsActiveThisMonth.push(debt.name);
       }
     }
 
-    // Step 2: Apply extra cash to priority debt (cascade)
+    // Step 2: Sobra real disponível após despesas fixas e parcelas mínimas é injetada na dívida prioritária
+    let extraAvailable = Math.max(0, netAfterFixed - minPaymentsSum);
+    let extraPaymentThisMonth = 0;
+
     for (const debt of sim) {
       if (debt.balance <= 0 || extraAvailable <= 0) continue;
 
@@ -362,6 +412,7 @@ export function generateEliminationPlan(
       debt.balance -= extraPayment;
       debt.totalPaid += extraPayment;
       totalPaymentThisMonth += extraPayment;
+      extraPaymentThisMonth += extraPayment;
       extraAvailable -= extraPayment;
 
       if (debt.balance <= 0.01) {
@@ -371,22 +422,27 @@ export function generateEliminationPlan(
           debtsPaidOffThisMonth.push(debt.name);
           const idx = debtsActiveThisMonth.indexOf(debt.name);
           if (idx > -1) debtsActiveThisMonth.splice(idx, 1);
-          extraAvailable += debt.installment;
         }
       }
     }
 
+    // Step 3: Saldo livre final no mês e saldo devedor restante
+    const netSavings = Math.max(0, monthlyIncome - monthlyFixedExpenses - totalPaymentThisMonth);
     cumulativePaid += totalPaymentThisMonth;
     const remainingDebt = sim.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
 
     monthlyActions.push({
       month: monthOffset,
       monthLabel,
+      monthlyIncome,
+      monthlyFixedExpenses,
+      netAfterFixed,
       totalPayment: totalPaymentThisMonth,
+      extraPayment: extraPaymentThisMonth,
+      netSavings,
+      remainingDebt,
       debtsActive: debtsActiveThisMonth,
       debtsPaidOff: debtsPaidOffThisMonth,
-      remainingDebt,
-      extraPayment: Math.max(0, totalPaymentThisMonth - snapshot.monthlyDebtPayments),
       cumulativePaid,
     });
   }
@@ -657,10 +713,18 @@ function generateMonthlyReport(
   report += `   - Mantenha uma reserva de emergência mínima de **R$ 500 a R$ 1.000** em uma conta de liquidez diária (100% CDI) separada da sua conta corrente.\n`;
   report += `   - Essa reserva impede que qualquer imprevisto médico, mecânico ou doméstico obrigue você a recorrer novamente a cartão ou cheque especial.\n\n`;
 
-  // 6. Cronograma Mês a Mês Detalhado
-  report += `## 📅 6. CRONOGRAMA DE EXECUÇÃO MÊS A MÊS (PLANO EFICAZ)\n\n`;
+  // 6. Cronograma Mês a Mês Detalhado com Mecanismo de Fluxo de Caixa
+  report += `## 📅 6. CRONOGRAMA DE EXECUÇÃO MÊS A MÊS (PLANO EFICAZ & MECANISMO DE QUITAÇÃO)\n\n`;
   report += `> **Estratégia Selecionada:** ${strategyName}\n`;
   report += `> **Previsão de Liberdade Financeira Total:** **${freedomDate}** (${totalMonths} meses)\n\n`;
+
+  report += `### 🌊 Como Funciona o Mecanismo Mensal Automático:\n`;
+  report += `Para cada mês, o plano opera a seguinte engenharia de prioridade inegociável:\n`;
+  report += `1. **Receita Mensal:** Calcula o total de dinheiro líquido que entra no mês.\n`;
+  report += `2. **(-) Despesas Fixas Essenciais:** Reserva e protege primeiro o dinheiro para moradia, contas básicas e sobrevivência.\n`;
+  report += `3. **(=) Disponível para Dívidas:** O que sobra após as contas fixas é destinado integralmente para amortização.\n`;
+  report += `4. **(-) Pagamento de Dívidas:** Paga as parcelas mínimas de todas as dívidas ativas e injeta o excedente na dívida prioritária daquele mês.\n`;
+  report += `5. **(=) Saldo Final & Efeito Rollover:** Quando uma dívida zera, seu valor no mês seguinte soma na próxima dívida, acelerando o término.\n\n`;
 
   report += `### Ordem Oficial de Quitação das Dívidas:\n\n`;
   payoffQueue.forEach((d, idx) => {
@@ -669,22 +733,39 @@ function generateMonthlyReport(
     report += `- Previsão de Extinção: **${d.payoffDate}** (em ${d.monthsToPayoff} meses)\n\n`;
   });
 
-  report += `### Evolução Mês a Mês do Pagamento e Redução do Saldo Devedor:\n\n`;
-  report += `| Mês | Referência | Pagamento Total | Acelerador Extra | Dívidas Quitadas no Mês | Saldo Devedor Restante |\n`;
-  report += `|:---:|:---|---:|---:|:---|---:|\n`;
+  report += `### 📊 Tabela de Fluxo de Caixa Mês a Mês (Receita ➔ Desp. Fixas ➔ Dívidas ➔ Saldo):\n\n`;
+  report += `| Mês | Referência | Receita Prevista | (-) Desp. Fixas | (=) Disp. p/ Dívidas | (-) Dívidas Pagas | (=) Saldo Final | Saldo Devedor | Quitações do Mês |\n`;
+  report += `|:---:|:---|---:|---:|---:|---:|---:|---:|:---|`;
+  report += `\n`;
 
   const showMonths = Math.min(monthlyActions.length, 18);
   for (let i = 0; i < showMonths; i++) {
     const act = monthlyActions[i];
     const quitadas = act.debtsPaidOff.length > 0 ? `🎉 **${act.debtsPaidOff.join(', ')}**` : '—';
-    const extra = act.extraPayment > 0 ? formatCurrency(act.extraPayment) : 'R$ 0,00';
-    report += `| ${act.month} | ${act.monthLabel} | **${formatCurrency(act.totalPayment)}** | ${extra} | ${quitadas} | **${formatCurrency(act.remainingDebt)}** |\n`;
+    report += `| ${act.month} | ${act.monthLabel} | +${formatCurrency(act.monthlyIncome)} | -${formatCurrency(act.monthlyFixedExpenses)} | **${formatCurrency(act.netAfterFixed)}** | -${formatCurrency(act.totalPayment)} | +${formatCurrency(act.netSavings)} | **${formatCurrency(act.remainingDebt)}** | ${quitadas} |\n`;
   }
 
   if (monthlyActions.length > 18) {
-    report += `| ... | *(demais ${monthlyActions.length - 18} meses seguem o fluxo de rolagem contínua)* | ... | ... | ... | R$ 0,00 |\n`;
+    report += `| ... | *(demais ${monthlyActions.length - 18} meses seguem o fluxo de rolagem contínua)* | ... | ... | ... | ... | ... | R$ 0,00 | 🎉 Fim |\n`;
   }
   report += `\n`;
+
+  report += `### 📋 Roteiro de Execução Mês a Mês:\n\n`;
+  const previewMonths = Math.min(monthlyActions.length, 6);
+  for (let i = 0; i < previewMonths; i++) {
+    const act = monthlyActions[i];
+    report += `#### 🗓️ Mês ${act.month} (${act.monthLabel}):\n`;
+    report += `- 📥 **Receita Prevista:** ${formatCurrency(act.monthlyIncome)}\n`;
+    report += `- 🏠 **(-) Despesas Fixas:** Separar ${formatCurrency(act.monthlyFixedExpenses)} prioritariamente para manter suas contas essenciais pagas em dia.\n`;
+    report += `- ⚡ **(=) Dinheiro Disponível p/ Dívidas:** ${formatCurrency(act.netAfterFixed)}\n`;
+    report += `- 💳 **(-) Pagamento em Dívidas:** ${formatCurrency(act.totalPayment)}${act.extraPayment > 0 ? ` *(inclui amortização acelerada de ${formatCurrency(act.extraPayment)})*` : ''}\n`;
+    report += `- 💰 **(=) Saldo Livre Restante no Mês:** ${formatCurrency(act.netSavings)}\n`;
+    report += `- 📉 **Saldo Devedor Total Restante:** ${formatCurrency(act.remainingDebt)}\n`;
+    if (act.debtsPaidOff.length > 0) {
+      report += `- 🎉 **Vitória do Mês:** Dívida extinta: **${act.debtsPaidOff.join(', ')}**! No mês seguinte, esse valor liberado fortalece a próxima amortização.\n`;
+    }
+    report += `\n`;
+  }
 
   // 7. Resumo de Metas e Conclusão
   report += `## 🏆 7. METAS & GARANTIA DE SUCESSO\n\n`;
