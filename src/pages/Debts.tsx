@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, Zap, ReceiptText,
   WalletCards, BadgeCheck, ExternalLink, Calendar, AlertCircle,
   ChevronLeft, ChevronRight, Filter, TrendingUp, DollarSign,
-  ArrowUpRight, ArrowDownRight, Scale
+  ArrowUpRight, ArrowDownRight, Scale, Home, Lightbulb
 } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -22,17 +22,31 @@ const DEBT_CATEGORIES = [
   { value: 'credit_card',   label: 'Cartão de Crédito' },
   { value: 'loan',          label: 'Empréstimo / Financiamento' },
   { value: 'overdraft',     label: 'Cheque Especial' },
-  { value: 'monthly_bill',  label: 'Dívida Mensal (Luz, Água, Internet…)' },
+  { value: 'monthly_bill',  label: 'Conta Fixa / Mensal (Luz, Água, Net…)' },
+  { value: 'utilities',     label: 'Contas Básicas (Água, Luz, Internet)' },
+  { value: 'housing',       label: 'Moradia / Aluguel / Condomínio' },
+  { value: 'food',          label: 'Alimentação' },
+  { value: 'transport',     label: 'Transporte' },
+  { value: 'health',        label: 'Saúde' },
+  { value: 'education',     label: 'Educação' },
   { value: 'other',         label: 'Outros' },
 ];
 
 const getCategoryLabel = (cat?: string) =>
-  DEBT_CATEGORIES.find(c => c.value === cat)?.label ?? (cat === 'housing' ? 'Moradia' : cat === 'utilities' ? 'Contas' : 'Dívida');
+  DEBT_CATEGORIES.find(c => c.value === cat)?.label ??
+  (cat === 'housing' ? 'Moradia / Aluguel' :
+   cat === 'utilities' ? 'Contas (Água/Luz/Net)' :
+   cat === 'monthly_bill' ? 'Conta Mensal' :
+   cat === 'food' ? 'Alimentação' :
+   cat === 'transport' ? 'Transporte' :
+   cat === 'health' ? 'Saúde' :
+   cat === 'education' ? 'Educação' : 'Dívida / Conta');
 
 const getCategoryIcon = (cat?: string, debtName?: string) => {
   const n = (debtName ?? '').toLowerCase();
   if (n.includes('nubank') || cat === 'credit_card') return CreditCard;
-  if (cat === 'monthly_bill') return ReceiptText;
+  if (cat === 'monthly_bill' || cat === 'utilities') return ReceiptText;
+  if (cat === 'housing') return Home;
   if (cat === 'overdraft') return AlertTriangle;
   if (cat === 'loan') return Landmark;
   return WalletCards;
@@ -40,15 +54,25 @@ const getCategoryIcon = (cat?: string, debtName?: string) => {
 
 const getCategoryColor = (cat?: string, isPaid?: boolean) => {
   if (isPaid) return 'bg-emerald-50 text-emerald-600';
-  if (cat === 'monthly_bill') return 'bg-blue-50 text-blue-600';
+  if (cat === 'monthly_bill' || cat === 'utilities') return 'bg-blue-50 text-blue-600';
+  if (cat === 'housing')      return 'bg-amber-50 text-amber-600';
   if (cat === 'overdraft')    return 'bg-orange-100 text-orange-600';
   if (cat === 'credit_card')  return 'bg-purple-50 text-sp-purple';
   if (cat === 'loan')         return 'bg-indigo-50 text-indigo-600';
   return 'bg-slate-100 text-slate-600';
 };
 
-const isCreditExpense = (e: Expense) =>
-  e.category === 'credit_card' || e.category === 'loan' || e.category === 'overdraft';
+const isCreditCategory = (cat?: string) =>
+  cat === 'credit_card' || cat === 'loan' || cat === 'overdraft';
+
+const getMonthKeyFromDate = (dateStr?: string) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length >= 2) {
+    return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+  }
+  return '';
+};
 
 export const Debts = () => {
   const now = new Date();
@@ -72,10 +96,13 @@ export const Debts = () => {
   const watchedCategory = watch('category');
   const debtType = getDebtBaseType(rawDebtType);
 
-  // Month navigation options: past 2 months, current, and next 10 months
+  // Generate full range of months: from January of current year (and past months) through all 12 months + next year
+  const currentYear = now.getFullYear();
   const monthOptions: { value: string; label: string; isCurrent: boolean }[] = [];
-  for (let i = -2; i <= 10; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+
+  // All 12 months of current year
+  for (let m = 0; m < 12; m++) {
+    const d = new Date(currentYear, m, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const rawLabel = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
     const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
@@ -83,6 +110,19 @@ export const Debts = () => {
       value,
       label,
       isCurrent: value === currentMonthKey,
+    });
+  }
+
+  // Next year first 6 months
+  for (let m = 0; m < 6; m++) {
+    const d = new Date(currentYear + 1, m, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const rawLabel = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+    const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+    monthOptions.push({
+      value,
+      label,
+      isCurrent: false,
     });
   }
 
@@ -163,7 +203,7 @@ export const Debts = () => {
     }
   };
 
-  // ── Toggle paid/pending for card & loan expenses ───────────────────────────
+  // ── Toggle paid/pending for card & loan & other expenses ───────────────────
   const toggleExpensePaid = async (expense: Expense) => {
     setTogglingExpenseId(expense.id);
     try {
@@ -173,17 +213,17 @@ export const Debts = () => {
         paymentDate: nowPaid ? new Date().toISOString().split('T')[0] : null,
         updatedAt: new Date().toISOString(),
       }).eq('id', expense.id);
-      toast.success(nowPaid ? '✅ Fatura marcada como paga!' : '⏳ Fatura marcada como pendente');
+      toast.success(nowPaid ? '✅ Conta marcada como paga!' : '⏳ Conta marcada como pendente');
       await fetchDebts();
     } catch {
-      toast.error('Erro ao atualizar status da fatura');
+      toast.error('Erro ao atualizar status da conta');
     } finally {
       setTogglingExpenseId(null);
     }
   };
 
   const deleteExpense = async (id: string) => {
-    if (!confirm('Deseja realmente remover esta fatura/despesa?')) return;
+    if (!confirm('Deseja realmente remover esta conta/despesa?')) return;
     try {
       await supabase.from('expenses').update({ isActive: false }).eq('id', id);
       toast.success('Removido com sucesso');
@@ -323,17 +363,27 @@ export const Debts = () => {
     }
   };
 
-  // ── Derived stats (debts + credit expenses) ───────────────────────────────
-  const creditExpenses = expenses.filter(isCreditExpense);
-  const unpaidCreditExpenses = creditExpenses.filter(e => !e.isPaid);
-  const paidCreditExpenses = creditExpenses.filter(e => e.isPaid);
+  // ── Derived stats (ALL debts + ALL expenses) ──────────────────────────────
+  const unpaidDebts = debts.filter(d => !d.isPaid);
+  const paidDebts = debts.filter(d => d.isPaid);
 
-  const totalDebtBalance = debts.reduce((acc, d) => acc + (d.isPaid ? 0 : d.remainingAmount), 0);
-  const totalCardBalance = unpaidCreditExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
-  const totalCombinedDebt = totalDebtBalance + totalCardBalance;
+  const unpaidExpenses = expenses.filter(e => !e.isPaid);
+  const paidExpenses = expenses.filter(e => e.isPaid);
 
-  const pendingCount = debts.filter(d => !d.isPaid).length + unpaidCreditExpenses.length;
-  const paidCount = debts.filter(d => d.isPaid).length + paidCreditExpenses.length;
+  const totalDebtBalance = unpaidDebts.reduce((acc, d) => acc + (Number(d.remainingAmount) || 0), 0);
+  const totalExpensesUnpaid = unpaidExpenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const totalCombinedDebt = totalDebtBalance + totalExpensesUnpaid;
+
+  const totalCardUnpaid = unpaidExpenses
+    .filter(e => isCreditCategory(e.category))
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  const totalBillsUnpaid = totalDebtBalance + unpaidExpenses
+    .filter(e => !isCreditCategory(e.category))
+    .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+  const pendingCount = unpaidDebts.length + unpaidExpenses.length;
+  const paidCount = paidDebts.length + paidExpenses.length;
 
   // ── Upcoming due dates calculation ────────────────────────────────────────
   const today = new Date();
@@ -413,7 +463,7 @@ export const Debts = () => {
   const upcomingList: UpcomingItem[] = [];
 
   // Add unpaid debts with dueDate
-  debts.filter(d => !d.isPaid).forEach(d => {
+  unpaidDebts.forEach(d => {
     const info = parseDueDateInfo(d.dueDate);
     upcomingList.push({
       id: `debt-${d.id}`,
@@ -430,15 +480,18 @@ export const Debts = () => {
     });
   });
 
-  // Add unpaid credit card / loan expenses
-  unpaidCreditExpenses.forEach(e => {
+  // Add all unpaid expenses (cards, loans, and normal bills like agua, luz, net)
+  unpaidExpenses.forEach(e => {
     const info = parseDueDateInfo(e.dueDate);
     const bankInfo = getBankInfo(e.bank);
+    const isCredit = isCreditCategory(e.category);
     upcomingList.push({
       id: `exp-${e.id}`,
       sourceType: 'expense',
       title: e.name,
-      subTitle: e.category === 'loan' ? `Empréstimo · ${bankInfo.name}` : `Cartão · ${bankInfo.name}`,
+      subTitle: isCredit
+        ? (e.category === 'loan' ? `Empréstimo · ${bankInfo.name}` : `Cartão · ${bankInfo.name}`)
+        : getCategoryLabel(e.category),
       amount: Number(e.amount) || 0,
       dueDate: e.dueDate || '',
       daysUntil: info.daysUntil,
@@ -457,7 +510,7 @@ export const Debts = () => {
   // ── Unified items for Main List ───────────────────────────────────────────
   type UnifiedListItem = {
     id: string;
-    itemType: 'debt' | 'card_expense';
+    itemType: 'debt' | 'card_expense' | 'bill_expense';
     name: string;
     category: string;
     bank?: string;
@@ -482,7 +535,7 @@ export const Debts = () => {
     name: d.name,
     category: d.category || 'other',
     dueDate: d.dueDate || '',
-    monthKey: d.dueDate ? d.dueDate.slice(0, 7) : '',
+    monthKey: getMonthKeyFromDate(d.dueDate || d.paymentDate),
     amount: d.remainingAmount,
     installmentAmount: Number(d.installmentAmount || d.remainingAmount) || 0,
     totalAmount: d.totalAmount,
@@ -494,16 +547,18 @@ export const Debts = () => {
     rawDebt: d,
   }));
 
-  const cardItems: UnifiedListItem[] = creditExpenses.map(e => {
+  // ALL expenses (credit cards, loans, AND basic bills like agua, luz, internet, moradia)
+  const expenseItems: UnifiedListItem[] = expenses.map(e => {
     const meta = extractExpenseMeta(e);
+    const isCredit = isCreditCategory(e.category);
     return {
       id: `exp-${e.id}`,
-      itemType: 'card_expense',
+      itemType: isCredit ? 'card_expense' : 'bill_expense',
       name: e.name,
       category: e.category,
       bank: e.bank,
       dueDate: e.dueDate || '',
-      monthKey: e.dueDate ? e.dueDate.slice(0, 7) : '',
+      monthKey: getMonthKeyFromDate(e.dueDate || e.paymentDate),
       amount: Number(e.amount) || 0,
       installmentAmount: Number(e.amount) || 0,
       totalAmount: Number(e.amount) || 0,
@@ -516,30 +571,99 @@ export const Debts = () => {
     };
   });
 
-  const allItems: UnifiedListItem[] = [...debtItems, ...cardItems];
+  const allItems: UnifiedListItem[] = [...debtItems, ...expenseItems];
 
-  // ── Monthly metrics calculation (Dívidas + Receitas) ──────────────────────
-  const monthForMetrics = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
-
-  const monthItems = allItems.filter(item => {
-    if (item.category === 'monthly_bill') {
-      return !item.dueDate || item.dueDate.startsWith(monthForMetrics);
+  // ── Helper to match an item to a target month (e.g. "2026-10") ────────────
+  const itemMatchesMonth = (item: UnifiedListItem, targetMonthKey: string): boolean => {
+    // 1. Exact match on dueDate (e.g. '2026-10-15')
+    if (item.dueDate && getMonthKeyFromDate(item.dueDate) === targetMonthKey) {
+      return true;
     }
-    return item.dueDate && item.dueDate.startsWith(monthForMetrics);
-  });
 
-  const monthTotalAmount = monthItems.reduce(
-    (acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount),
-    0
-  );
+    // 2. Exact match on paymentDate (e.g. paid on '2026-10-10')
+    if (item.paymentDate && getMonthKeyFromDate(item.paymentDate) === targetMonthKey) {
+      return true;
+    }
+
+    // 3. Recurring monthly bills in debts table (category: monthly_bill)
+    // If a monthly bill repeats for X installments (e.g. 12 months from Jan to Dec):
+    if (item.rawDebt && (item.category === 'monthly_bill' || (item.totalInstallments && item.totalInstallments > 1))) {
+      const d = item.rawDebt;
+      const baseDueDate = d.dueDate || d.createdAt;
+      const baseMonthKey = getMonthKeyFromDate(baseDueDate);
+      if (!baseMonthKey) return true;
+
+      const [baseYear, baseMonth] = baseMonthKey.split('-').map(Number);
+      const [targetYear, targetMonth] = targetMonthKey.split('-').map(Number);
+      const monthDiff = (targetYear - baseYear) * 12 + (targetMonth - baseMonth);
+
+      const totalInst = d.totalInstallments || 12;
+      const paidInst = d.paidInstallments || 0;
+      const minMonthDiff = -paidInst;
+      const maxMonthDiff = totalInst - paidInst;
+
+      if (monthDiff >= minMonthDiff && monthDiff <= maxMonthDiff) {
+        return true;
+      }
+    }
+
+    // 4. Recurring expenses with recurrenceDay or type === fixed without multiple entries
+    if (item.rawExpense && !item.dueDate && item.rawExpense.recurrenceDay) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Helper to determine if an item is considered paid in the context of the viewed month
+  const isItemPaidInMonth = (item: UnifiedListItem, targetMonthKey: string): boolean => {
+    // If it was paid on this exact month
+    if (item.paymentDate && getMonthKeyFromDate(item.paymentDate) === targetMonthKey) {
+      return true;
+    }
+    // If direct item is paid and dueDate is on or before this month
+    if (item.isPaid) {
+      if (item.dueDate && getMonthKeyFromDate(item.dueDate) <= targetMonthKey) {
+        return true;
+      }
+      return true;
+    }
+    // For debts with paid installments: past months before current unpaid were paid
+    if (item.rawDebt && (item.category === 'monthly_bill' || (item.totalInstallments && item.totalInstallments > 1))) {
+      const d = item.rawDebt;
+      const baseMonthKey = getMonthKeyFromDate(d.dueDate || d.createdAt);
+      if (baseMonthKey && targetMonthKey < baseMonthKey) {
+        return true; // past month in the installment chain
+      }
+    }
+    return false;
+  };
+
+  // ── Monthly metrics calculation (Dívidas/Contas + Receitas) ───────────────
+  const monthForMetrics = selectedMonth === 'all' ? currentMonthKey : selectedMonth;
+  const monthItems = allItems.filter(item => itemMatchesMonth(item, monthForMetrics));
+
+  const monthTotalAmount = monthItems.reduce((acc, it) => {
+    const amt = it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount;
+    return acc + (Number(amt) || 0);
+  }, 0);
+
   const monthPendingAmount = monthItems
-    .filter(it => !it.isPaid)
-    .reduce((acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount), 0);
+    .filter(it => !isItemPaidInMonth(it, monthForMetrics))
+    .reduce((acc, it) => {
+      const amt = it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount;
+      return acc + (Number(amt) || 0);
+    }, 0);
+
   const monthPaidAmount = monthItems
-    .filter(it => it.isPaid)
-    .reduce((acc, it) => acc + (it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount), 0);
-  const monthPendingCount = monthItems.filter(it => !it.isPaid).length;
-  const monthPaidCount = monthItems.filter(it => it.isPaid).length;
+    .filter(it => isItemPaidInMonth(it, monthForMetrics))
+    .reduce((acc, it) => {
+      const amt = it.itemType === 'debt' ? (it.installmentAmount || it.amount) : it.amount;
+      return acc + (Number(amt) || 0);
+    }, 0);
+
+  const monthPendingCount = monthItems.filter(it => !isItemPaidInMonth(it, monthForMetrics)).length;
+  const monthPaidCount = monthItems.filter(it => isItemPaidInMonth(it, monthForMetrics)).length;
 
   // Monthly Income Calculation for target month
   const getMonthlyIncomeForMonth = (targetMonthKey: string) => {
@@ -585,25 +709,25 @@ export const Debts = () => {
   // Filter items by Month first
   const monthFilteredItems = allItems.filter(item => {
     if (selectedMonth === 'all') return true;
-    if (item.category === 'monthly_bill') {
-      return !item.dueDate || item.dueDate.startsWith(selectedMonth);
-    }
-    return item.dueDate && item.dueDate.startsWith(selectedMonth);
+    return itemMatchesMonth(item, selectedMonth);
   });
 
   // Then filter by Category / Tab
   const filteredItems = monthFilteredItems
     .filter(item => {
-      if (filter === 'Cartões') return item.itemType === 'card_expense';
-      if (filter === 'Mensais') return item.category === 'monthly_bill';
-      if (filter === 'Pagos') return item.isPaid === true;
-      if (filter === 'Pendentes') return !item.isPaid;
+      const isPaidForView = selectedMonth !== 'all' ? isItemPaidInMonth(item, selectedMonth) : item.isPaid;
+      if (filter === 'Cartões') return isCreditCategory(item.category);
+      if (filter === 'Mensais') return !isCreditCategory(item.category);
+      if (filter === 'Pagos') return isPaidForView === true;
+      if (filter === 'Pendentes') return !isPaidForView;
       return true;
     })
     .sort((a, b) => {
+      const isPaidA = selectedMonth !== 'all' ? isItemPaidInMonth(a, selectedMonth) : a.isPaid;
+      const isPaidB = selectedMonth !== 'all' ? isItemPaidInMonth(b, selectedMonth) : b.isPaid;
       if (filter === 'Valor') return b.amount - a.amount;
       // Pending first, paid last
-      if (a.isPaid !== b.isPaid) return a.isPaid ? 1 : -1;
+      if (isPaidA !== isPaidB) return isPaidA ? 1 : -1;
       // Sort chronologically by due date
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
       return 0;
@@ -629,21 +753,21 @@ export const Debts = () => {
         <div>
           <Title subtitle="GESTÃO DE DÍVIDAS">Dívidas Ativas</Title>
           <p className="text-sm font-semibold text-sp-text-sec mt-1">
-            Controle unificado de dívidas, faturas de cartões e relação com receitas por mês.
+            Controle unificado de dívidas, contas fixas (água, luz, net), cartões e relação com receitas por mês.
           </p>
         </div>
       </div>
 
       {/* Stats Cards (Totais Gerais) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total em aberto (Dívidas + Cartões) */}
+        {/* Total em aberto (Dívidas + Contas + Cartões) */}
         <div className="bg-sp-purple text-white rounded-3xl p-6 shadow-md relative overflow-hidden md:col-span-1">
           <p className="text-xs font-bold uppercase tracking-widest text-white/70 mb-1">TOTAL GERAL EM ABERTO</p>
           <h2 className="text-3xl font-extrabold tracking-tight">{formatCurrency(totalCombinedDebt)}</h2>
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/15 text-[11px] font-semibold text-white/90">
-            <span>Dívidas: {formatCurrency(totalDebtBalance)}</span>
+            <span>Contas/Dívidas: {formatCurrency(totalBillsUnpaid)}</span>
             <span>•</span>
-            <span>Cartões: {formatCurrency(totalCardBalance)}</span>
+            <span>Cartões: {formatCurrency(totalCardUnpaid)}</span>
           </div>
         </div>
 
@@ -655,7 +779,7 @@ export const Debts = () => {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-sp-text-sec">Pendentes (Geral)</p>
             <p className="text-2xl font-black text-amber-500">{pendingCount < 10 ? `0${pendingCount}` : pendingCount}</p>
-            <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Dívidas e faturas a pagar</p>
+            <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Dívidas, contas e faturas a pagar</p>
           </div>
         </div>
 
@@ -667,7 +791,7 @@ export const Debts = () => {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-sp-text-sec">Pagas / Liquidadas</p>
             <p className="text-2xl font-black text-emerald-500">{paidCount < 10 ? `0${paidCount}` : paidCount}</p>
-            <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Quitadas este ciclo</p>
+            <p className="text-[10px] font-semibold text-sp-text-subtle mt-0.5">Contas e dívidas quitadas</p>
           </div>
         </div>
       </div>
@@ -748,12 +872,12 @@ export const Debts = () => {
             </p>
           </div>
 
-          {/* 2. Dívidas a Pagar */}
+          {/* 2. Dívidas / Contas a Pagar */}
           <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-sp-text-subtle">
-                  A Pagar (Dívidas)
+                  Total Contas/Dívidas
                 </p>
                 <ReceiptText className="w-3.5 h-3.5 text-sp-purple" />
               </div>
@@ -765,7 +889,7 @@ export const Debts = () => {
               {monthPendingAmount > 0 ? (
                 <span>Pendente: <strong className="text-amber-600">{formatCurrency(monthPendingAmount)}</strong> ({monthPendingCount})</span>
               ) : monthTotalAmount > 0 ? (
-                <span className="text-emerald-600 font-bold">Tudo quitado este mês! 🎉</span>
+                <span className="text-emerald-600 font-bold">Tudo quitado este mês! ({formatCurrency(monthPaidAmount)}) 🎉</span>
               ) : (
                 <span>Nenhuma conta no mês</span>
               )}
@@ -839,7 +963,7 @@ export const Debts = () => {
           <div className="flex justify-between items-center text-xs font-bold text-sp-text-sec mb-2">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-sp-purple inline-block" />
-              <span>Dívidas a Pagar: <strong className="text-sp-text-dark">{formatCurrency(monthTotalAmount)}</strong></span>
+              <span>Dívidas/Contas do Mês: <strong className="text-sp-text-dark">{formatCurrency(monthTotalAmount)}</strong></span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
@@ -872,7 +996,7 @@ export const Debts = () => {
               ) : monthBalance >= 0 ? (
                 <span className="text-emerald-700 font-bold flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Sua receita cobre todas as dívidas deste mês, sobrando {formatCurrency(monthBalance)} livres.
+                  Sua receita cobre todas as dívidas e contas deste mês, sobrando {formatCurrency(monthBalance)} livres.
                 </span>
               ) : (
                 <span className="text-sp-red-text font-bold flex items-center gap-1">
@@ -890,11 +1014,11 @@ export const Debts = () => {
         </div>
       </div>
 
-      {/* 🗓️ SELETOR DE MÊS (FILTRO POR MÊS) */}
+      {/* 🗓️ SELETOR DE MÊS (FILTRO POR MÊS - DESDE JANEIRO) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <span className="text-[11px] font-bold uppercase tracking-wider text-sp-text-sec flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-sp-purple" /> Filtrar Dívidas por Mês de Vencimento
+            <Calendar className="w-3.5 h-3.5 text-sp-purple" /> Filtrar Dívidas e Contas por Mês
           </span>
           {selectedMonth !== 'all' && (
             <span className="text-[10px] font-bold text-sp-purple">
@@ -964,7 +1088,7 @@ export const Debts = () => {
         </div>
       </div>
 
-      {/* 🚨 PRÓXIMOS A VENCER (Dívidas e Faturas próximas) */}
+      {/* 🚨 PRÓXIMOS A VENCER (Dívidas, Contas e Faturas próximas) */}
       <div className="bg-white border border-sp-border rounded-3xl p-5 sm:p-6 shadow-sm relative">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -975,7 +1099,7 @@ export const Debts = () => {
               </h3>
             </div>
             <p className="text-xs font-semibold text-sp-text-sec mt-0.5">
-              Dívidas e faturas com vencimento iminente ou em atraso
+              Dívidas, contas básicas e faturas com vencimento iminente ou em atraso
             </p>
           </div>
           <span className="text-xs font-bold text-sp-purple bg-sp-purple/10 px-2.5 py-1 rounded-full">
@@ -985,12 +1109,13 @@ export const Debts = () => {
 
         {activeUpcoming.length === 0 ? (
           <div className="text-center py-6 border-2 border-dashed border-sp-border rounded-2xl bg-slate-50/50">
-            <p className="text-xs font-semibold text-sp-text-sec">Nenhuma dívida ou fatura pendente próxima! 🎉</p>
+            <p className="text-xs font-semibold text-sp-text-sec">Nenhuma conta pendente próxima! 🎉</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeUpcoming.map((item) => {
               const isExpense = item.sourceType === 'expense';
+              const IconComponent = getCategoryIcon(item.category, item.title);
 
               return (
                 <div
@@ -1001,9 +1126,9 @@ export const Debts = () => {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={cn(
                         "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                        isExpense ? "bg-purple-100 text-sp-purple" : "bg-blue-100 text-blue-600"
+                        isCreditCategory(item.category) ? "bg-purple-100 text-sp-purple" : "bg-blue-100 text-blue-600"
                       )}>
-                        {isExpense ? <CreditCard className="w-4 h-4" /> : <ReceiptText className="w-4 h-4" />}
+                        <IconComponent className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -1068,9 +1193,9 @@ export const Debts = () => {
         {[
           { key: 'Todos',     label: selectedMonth === 'all' ? 'Todos' : 'Todos do Mês' },
           { key: 'Pendentes', label: selectedMonth === 'all' ? '⏳ A Pagar' : '⏳ A Pagar no Mês' },
-          { key: 'Cartões',   label: '💳 Cartões & Emprést.' },
           { key: 'Pagos',     label: selectedMonth === 'all' ? '✅ Pagos' : '✅ Pagos no Mês' },
-          { key: 'Mensais',   label: '📅 Mensais' },
+          { key: 'Mensais',   label: '💡 Contas Fixas (Água/Luz/Net)' },
+          { key: 'Cartões',   label: '💳 Cartões & Emprést.' },
           { key: 'Valor',     label: 'Por Valor' },
         ].map(opt => (
           <button
@@ -1088,12 +1213,12 @@ export const Debts = () => {
         ))}
       </div>
 
-      {/* Debt & Card Items List */}
+      {/* Debt, Bill & Card Items List */}
       <div className="space-y-3">
         {filteredItems.length > 0 ? (
           filteredItems.map(item => {
             const isDebt = item.itemType === 'debt';
-            const isPaid = item.isPaid === true;
+            const isPaid = selectedMonth !== 'all' ? isItemPaidInMonth(item, selectedMonth) : item.isPaid;
 
             // Render Debt Item
             if (isDebt && item.rawDebt) {
@@ -1141,7 +1266,7 @@ export const Debts = () => {
                               {debt.name}
                             </h3>
                             <span className="text-[9px] font-bold uppercase tracking-wider text-sp-text-subtle border border-sp-border rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap">
-                              Dívida
+                              {debt.category === 'monthly_bill' ? 'Conta Fixa' : 'Dívida'}
                             </span>
                           </div>
                           <p className="text-[11px] font-semibold text-sp-text-sec mt-0.5">
@@ -1149,7 +1274,7 @@ export const Debts = () => {
                           </p>
                         </div>
                         <span className={cn("font-extrabold text-base shrink-0 ml-2", isPaid ? 'text-emerald-500' : 'text-sp-purple')}>
-                          {formatCurrency(debt.remainingAmount)}
+                          {formatCurrency(selectedMonth !== 'all' && debt.installmentAmount ? debt.installmentAmount : debt.remainingAmount)}
                         </span>
                       </div>
                     </div>
@@ -1159,7 +1284,7 @@ export const Debts = () => {
                   <div className="mb-3 flex flex-wrap gap-2">
                     {debt.category === 'monthly_bill' && (
                       <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 uppercase tracking-wider">
-                        Mensal
+                        Conta Mensal
                       </span>
                     )}
                     {isUrg && (
@@ -1243,11 +1368,14 @@ export const Debts = () => {
               );
             }
 
-            // Render Card / Loan Expense Item
+            // Render Expense Item (Credit Card, Loan OR Basic Bills like Agua, Luz, Internet)
             if (item.rawExpense) {
               const exp = item.rawExpense;
-              const bankInfo = getBankInfo(exp.bank);
+              const isCredit = isCreditCategory(exp.category);
+              const bankInfo = isCredit ? getBankInfo(exp.bank) : null;
               const meta = extractExpenseMeta(exp);
+              const IconComp = getCategoryIcon(exp.category, exp.name);
+              const colorClass = getCategoryColor(exp.category, isPaid);
 
               return (
                 <div
@@ -1273,8 +1401,8 @@ export const Debts = () => {
 
                   {/* Main row */}
                   <div className="flex gap-4 items-center mb-3">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", isPaid ? "bg-emerald-50 text-emerald-600" : "bg-purple-50 text-sp-purple")}>
-                      <CreditCard className="w-5 h-5" />
+                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", colorClass)}>
+                      <IconComp className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
@@ -1283,11 +1411,19 @@ export const Debts = () => {
                             <h3 className={cn("font-extrabold text-base truncate", isPaid ? 'text-sp-text-sec line-through decoration-emerald-400' : 'text-sp-text-dark')}>
                               {exp.name}
                             </h3>
-                            <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider", bankInfo.badge)}>
-                              {bankInfo.name}
-                            </span>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-sp-purple bg-purple-50 border border-purple-100 rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap">
-                              {exp.category === 'loan' ? 'Empréstimo' : exp.category === 'overdraft' ? 'Cheque Especial' : 'Cartão'}
+                            {bankInfo && (
+                              <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider", bankInfo.badge)}>
+                                {bankInfo.name}
+                              </span>
+                            )}
+                            <span className={cn(
+                              "text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap",
+                              isCredit ? "text-sp-purple bg-purple-50 border border-purple-100" : "text-blue-700 bg-blue-50 border border-blue-100"
+                            )}>
+                              {exp.category === 'loan' ? 'Empréstimo' :
+                               exp.category === 'overdraft' ? 'Cheque Especial' :
+                               exp.category === 'credit_card' ? 'Cartão' :
+                               getCategoryLabel(exp.category)}
                             </span>
                           </div>
                           <p className="text-[11px] font-semibold text-sp-text-sec mt-0.5">
@@ -1346,9 +1482,9 @@ export const Debts = () => {
                       <Link
                         href="/expenses"
                         className="text-xs font-semibold text-sp-purple hover:underline flex items-center gap-1"
-                        title="Ver nos Cartões"
+                        title="Ver em Despesas"
                       >
-                        <ExternalLink className="w-3.5 h-3.5" /> Cartões
+                        <ExternalLink className="w-3.5 h-3.5" /> Despesas
                       </Link>
                       <button
                         onClick={() => deleteExpense(exp.id)}
@@ -1371,8 +1507,8 @@ export const Debts = () => {
               {filter === 'Pagos' ? `Nenhum pagamento registrado para ${selectedMonth === 'all' ? 'o período geral' : getMonthName(selectedMonth)}.` :
                filter === 'Pendentes' ? `Nenhuma pendência encontrada para ${selectedMonth === 'all' ? 'o período geral' : getMonthName(selectedMonth)}! 🎉` :
                filter === 'Cartões' ? `Nenhum cartão ou empréstimo encontrado para ${selectedMonth === 'all' ? 'o período' : getMonthName(selectedMonth)}.` :
-               filter === 'Mensais' ? `Nenhuma dívida mensal encontrada para ${selectedMonth === 'all' ? 'o período' : getMonthName(selectedMonth)}.` :
-               `Nenhuma dívida ou fatura encontrada para ${selectedMonth === 'all' ? 'o filtro atual' : getMonthName(selectedMonth)}.`}
+               filter === 'Mensais' ? `Nenhuma conta fixa ou mensal encontrada para ${selectedMonth === 'all' ? 'o período' : getMonthName(selectedMonth)}.` :
+               `Nenhuma dívida ou conta encontrada para ${selectedMonth === 'all' ? 'o filtro atual' : getMonthName(selectedMonth)}.`}
             </p>
             {selectedMonth !== 'all' && (
               <button
@@ -1380,7 +1516,7 @@ export const Debts = () => {
                 className="text-xs font-bold text-sp-purple bg-white border border-sp-purple/30 hover:bg-sp-purple/5 px-4 py-2 rounded-full transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
                 <Calendar className="w-3.5 h-3.5" />
-                Ver todas as dívidas e meses
+                Ver todas as contas e meses
               </button>
             )}
           </div>
@@ -1428,7 +1564,7 @@ export const Debts = () => {
           {/* Monthly Bill fields */}
           {watchedCategory === 'monthly_bill' ? (
             <div className="space-y-4 bg-blue-50/50 border border-blue-200 p-4 rounded-2xl">
-              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Dívida Mensal Recorrente</p>
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Conta Fixa Recorrente</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <BrutalLabel>Valor desta Conta</BrutalLabel>
