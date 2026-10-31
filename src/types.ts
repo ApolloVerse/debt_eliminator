@@ -60,6 +60,10 @@ export interface Income {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  // Caixinha fields
+  boxStatus?: 'available' | 'blocked';
+  linkedCardKey?: string; // key = bank__baseName from CardGroup
+  bankName?: string;      // bank name for display
 }
 
 export interface Expense {
