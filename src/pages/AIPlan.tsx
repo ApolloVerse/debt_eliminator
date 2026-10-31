@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Debt, Income, Expense, DailyExpense, AIPlan as AIPlanType, AIStrategy } from '../types';
 import { generateEliminationPlan, getFinancialSnapshot, type DebtEliminationPlan, type FinancialSnapshot } from '../lib/aiEngine';
@@ -26,6 +26,9 @@ import {
   Heart,
   CircleDollarSign,
   Gauge,
+  Copy,
+  Check,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, cn } from '../lib/utils';
@@ -41,6 +44,8 @@ export const AIPlan = () => {
   const [showFullReport, setShowFullReport] = useState(false);
   const [savedPlanContent, setSavedPlanContent] = useState<string | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<number | null>(0);
+  const [copied, setCopied] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -70,27 +75,47 @@ export const AIPlan = () => {
   useEffect(() => { fetchData(); }, []);
 
   // Generate real-time elimination plan
+  // Generate real-time elimination plan
   const plan: DebtEliminationPlan | null = useMemo(() => {
-    if (debts.length === 0) return null;
+    if (debts.length === 0 && incomes.length === 0 && expenses.length === 0) return null;
     return generateEliminationPlan(debts, incomes, expenses, dailyExpenses, strategy);
   }, [debts, incomes, expenses, dailyExpenses, strategy]);
 
   const snapshot: FinancialSnapshot | null = useMemo(() => {
-    if (debts.length === 0 && incomes.length === 0) return null;
+    if (debts.length === 0 && incomes.length === 0 && expenses.length === 0) return null;
     return getFinancialSnapshot(debts, incomes, expenses, dailyExpenses);
   }, [debts, incomes, expenses, dailyExpenses]);
+
+  const handleCopyReport = () => {
+    if (!savedPlanContent) return;
+    navigator.clipboard.writeText(savedPlanContent);
+    setCopied(true);
+    toast.success('Relatório copiado para a área de transferência!');
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
 
   const generateAndSavePlan = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user || !plan) return;
+    if (!user) {
+      toast.error('Você precisa estar autenticado para gerar o relatório.');
+      return;
+    }
+    if (!plan && debts.length === 0 && incomes.length === 0) {
+      toast.error('Cadastre receitas, despesas ou dívidas para gerar a análise.');
+      return;
+    }
 
     setIsGenerating(true);
-    const toastId = toast.loading('Gerando análise financeira completa...');
+    const toastId = toast.loading('Gerando análise financeira e estratégias de eliminação...');
 
     try {
-      // Try the Groq API first, fallback to client-side
-      let planContent = plan.monthlyReport;
+      // Try the Groq API first, fallback to comprehensive client-side engine
+      let planContent = plan?.monthlyReport || '';
 
       try {
         const response = await fetch('/api/generate-plan', {
@@ -111,10 +136,16 @@ export const AIPlan = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          if (data.planContent) planContent = data.planContent;
+          if (data.planContent && data.planContent.length > 100) {
+            planContent = data.planContent;
+          }
         }
       } catch {
-        // API not available — use the comprehensive client-side engine (already done)
+        // Fallback to client-side engine (already generated in planContent)
+      }
+
+      if (!planContent && plan) {
+        planContent = plan.monthlyReport;
       }
 
       await supabase.from('ai_plans').insert([{
@@ -130,7 +161,11 @@ export const AIPlan = () => {
 
       setSavedPlanContent(planContent);
       setShowFullReport(true);
-      toast.success('Plano de eliminação gerado com sucesso!', { id: toastId });
+      toast.success('Relatório completo e estratégias geradas com sucesso!', { id: toastId });
+
+      setTimeout(() => {
+        reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 200);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao gerar plano.', { id: toastId });
     } finally {
@@ -483,20 +518,25 @@ export const AIPlan = () => {
       {/* ═══════════════════════════════════════════ */}
       {/* 7. GENERATE FULL AI REPORT */}
       {/* ═══════════════════════════════════════════ */}
-      <div className="bg-sp-purple text-white rounded-3xl p-6 shadow-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-28 h-28 bg-white/5 rounded-full -mr-8 -mt-8" />
-        <div className="relative z-10 space-y-3 mb-5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 fill-current" />
-            <h3 className="text-lg font-extrabold">Relatório Completo com IA</h3>
+      <div className="bg-gradient-to-br from-sp-purple via-indigo-700 to-purple-900 text-white rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden border border-purple-400/20">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+        <div className="relative z-10 space-y-3 mb-6">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-white/20 rounded-xl">
+              <Sparkles className="w-5 h-5 text-white fill-current" />
+            </span>
+            <div>
+              <h3 className="text-lg sm:text-xl font-extrabold tracking-tight">Gerar Relatório Completo com IA</h3>
+              <p className="text-xs text-white/80 font-medium">Diagnóstico financeiro profundo, fontes de renda, despesas futuras e plano de quitação</p>
+            </div>
           </div>
-          <p className="text-xs text-white/80 leading-relaxed">
-            Gere um relatório detalhado com diagnóstico financeiro, plano mês a mês, recomendações personalizadas e projeção de quando você estará 100% livre de dívidas.
+          <p className="text-xs sm:text-sm text-purple-100/90 leading-relaxed max-w-2xl">
+            Clique no botão abaixo para gerar uma análise completa: detalhamento das receitas atuais e futuras (de onde está vindo o dinheiro), raio-x de todas as despesas e parcelas de dívidas futuras, manual de postura comportamental personalizada para o seu cenário e estratégias simples e sofisticadas para eliminar suas dívidas o mais rápido possível.
           </p>
         </div>
         <BrutalButton
           onClick={generateAndSavePlan}
-          className="w-full h-12 font-extrabold text-sp-purple bg-white border-transparent hover:bg-slate-50 shadow-md"
+          className="w-full h-13 font-black text-sm uppercase tracking-wider text-sp-purple bg-white hover:bg-slate-50 border-transparent shadow-xl transition-all cursor-pointer active:scale-98 flex items-center justify-center gap-2"
           isLoading={isGenerating}
         >
           <FileText className="w-5 h-5 mr-1" />
@@ -508,22 +548,84 @@ export const AIPlan = () => {
       {/* 8. SAVED AI REPORT */}
       {/* ═══════════════════════════════════════════ */}
       {savedPlanContent && (
-        <div className="bg-white border border-sp-border rounded-3xl p-5 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-sp-mint" />
-              <h4 className="font-extrabold text-sm text-sp-text-dark">Relatório IA Detalhado</h4>
+        <div ref={reportRef} id="relatorio-completo" className="bg-white border border-sp-border rounded-3xl p-5 sm:p-7 shadow-sm scroll-mt-6 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sp-border pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+              <div>
+                <h4 className="font-extrabold text-base sm:text-lg text-sp-text-dark leading-tight">
+                  Relatório Financeiro Completo & Estratégia de Eliminação
+                </h4>
+                <p className="text-[11px] text-sp-text-sec">
+                  Documento analítico gerado sob medida para o seu orçamento
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => setShowFullReport(!showFullReport)}
-              className="text-xs font-bold text-sp-purple hover:underline cursor-pointer"
-            >
-              {showFullReport ? 'Ocultar' : 'Ver relatório completo'}
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyReport}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sp-border text-xs font-bold text-sp-text-dark bg-white hover:bg-slate-50 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                title="Copiar relatório em texto Markdown"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-sp-purple" />}
+                <span>{copied ? 'Copiado!' : 'Copiar'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sp-border text-xs font-bold text-sp-text-dark bg-white hover:bg-slate-50 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                title="Imprimir ou Salvar como PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-sp-purple" />
+                <span className="hidden sm:inline">Imprimir / PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowFullReport(!showFullReport)}
+                className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-sp-purple text-xs font-extrabold transition-all cursor-pointer"
+              >
+                {showFullReport ? 'Recolher' : 'Expandir Relatório'}
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Summary Chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+              <span className="text-[10px] font-bold uppercase text-sp-text-sec block">Receitas Atuais</span>
+              <span className="text-sm sm:text-base font-extrabold text-emerald-600">
+                {formatCurrency(snapshot?.monthlyIncome || 0)}
+              </span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+              <span className="text-[10px] font-bold uppercase text-sp-text-sec block">Despesas Fixas</span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-800">
+                {formatCurrency(snapshot?.monthlyFixedExpenses || 0)}
+              </span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+              <span className="text-[10px] font-bold uppercase text-sp-text-sec block">Total em Dívidas</span>
+              <span className="text-sm sm:text-base font-extrabold text-sp-red-text">
+                {formatCurrency(snapshot?.totalDebt || 0)}
+              </span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3">
+              <span className="text-[10px] font-bold uppercase text-sp-text-sec block">Saldo Livre Líquido</span>
+              <span className={cn(
+                "text-sm sm:text-base font-extrabold",
+                (snapshot?.freeCash || 0) >= 0 ? "text-sp-purple" : "text-rose-600"
+              )}>
+                {formatCurrency(snapshot?.freeCash || 0)}
+              </span>
+            </div>
           </div>
 
           {showFullReport && (
-            <div className="custom-markdown bg-sp-bg p-4 rounded-2xl border border-sp-border max-h-[600px] overflow-y-auto">
+            <div className="custom-markdown bg-sp-bg p-5 sm:p-7 rounded-2xl border border-sp-border max-h-[750px] overflow-y-auto leading-relaxed shadow-inner">
               <ReactMarkdown>{savedPlanContent}</ReactMarkdown>
             </div>
           )}

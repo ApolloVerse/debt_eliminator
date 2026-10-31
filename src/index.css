@@ -78,6 +78,40 @@
   @apply bg-sp-purple-light border-l-4 border-sp-purple p-4 text-sm text-sp-purple font-medium mb-6 rounded-r-lg;
 }
 
+.custom-markdown table {
+  width: 100%;
+  font-size: 0.8125rem;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem 0;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: table;
+}
+
+.custom-markdown th {
+  background-color: #F1F5F9;
+  color: #0F172A;
+  font-weight: 700;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  border-bottom: 2px solid #E2E8F0;
+}
+
+.custom-markdown td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #E2E8F0;
+  color: #1E293B;
+}
+
+.custom-markdown tr:nth-child(even) td {
+  background-color: #F8FAFC;
+}
+
+.custom-markdown tr:last-child td {
+  border-bottom: none;
+}
+
 /* Hide scrollbar but keep scroll */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

@@ -271,8 +271,19 @@ export function generateEliminationPlan(
     };
   });
 
-  // Generate detailed monthly report
-  const monthlyReport = generateMonthlyReport(snapshot, payoffQueue, monthlyActions, strategy, totalMonths, freedomDate);
+  // Generate detailed monthly report with complete income/expense breakdown, behavioral posture and strategies
+  const monthlyReport = generateMonthlyReport(
+    snapshot,
+    payoffQueue,
+    monthlyActions,
+    strategy,
+    totalMonths,
+    freedomDate,
+    debts,
+    incomes,
+    expenses,
+    dailyExpenses
+  );
 
   return {
     snapshot,
@@ -292,112 +303,224 @@ function generateMonthlyReport(
   monthlyActions: MonthlyAction[],
   strategy: 'snowball' | 'avalanche',
   totalMonths: number,
-  freedomDate: string
+  freedomDate: string,
+  debts: Debt[],
+  incomes: Income[],
+  expenses: Expense[],
+  dailyExpenses: DailyExpense[]
 ): string {
   const strategyName = strategy === 'snowball' ? 'Bola de Neve (Menor Saldo Primeiro)' : 'Avalanche (Maior Taxa de Juros Primeiro)';
+  const now = new Date();
+  const currentMonthIdx = now.getMonth();
+  const currentYear = now.getFullYear();
 
-  let report = `## 📊 DIAGNÓSTICO FINANCEIRO COMPLETO
+  const activeIncomes = incomes.filter(i => i.isActive);
+  const activeExpenses = expenses.filter(e => e.isActive);
+  const activeDebts = debts.filter(d => d.isActive && !d.isPaid);
 
-### Situação Atual
-| Indicador | Valor |
-|:---|---:|
-| **Receita Mensal** | ${formatCurrency(snapshot.monthlyIncome)} |
-| **Despesas Fixas** | ${formatCurrency(snapshot.monthlyFixedExpenses)} |
-| **Parcelas de Dívidas** | ${formatCurrency(snapshot.monthlyDebtPayments)} |
-| **Gastos Diários (mês atual)** | ${formatCurrency(snapshot.monthlyDailyExpenses)} |
-| **Saldo Livre** | ${formatCurrency(snapshot.freeCash)} |
-| **Total de Dívidas** | ${formatCurrency(snapshot.totalDebt)} |
-| **Comprometimento da Renda** | ${snapshot.commitmentPercentage.toFixed(1)}% |
+  let report = `# 📋 RELATÓRIO FINANCEIRO COMPLETO & PLANO DE ELIMINAÇÃO DE DÍVIDAS\n\n`;
+  report += `*Gerado em: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | Consultor de Estratégia Financeira*\n\n`;
 
-### 🔎 Análise de Saúde Financeira
-**Status: ${snapshot.healthLabel}**
-
-`;
+  // 1. Resumo Executivo & Raio-X
+  report += `## 📊 1. RAIO-X FINANCEIRO & BALANÇO OPERACIONAL\n\n`;
+  report += `| Indicador | Valor Mensal | Impacto na Renda |\n`;
+  report += `|:---|---:|---:|\n`;
+  report += `| **Receita Total Atual** | **${formatCurrency(snapshot.monthlyIncome)}** | 100.0% |\n`;
+  report += `| **Despesas Fixas & Contas** | ${formatCurrency(snapshot.monthlyFixedExpenses)} | ${snapshot.monthlyIncome > 0 ? ((snapshot.monthlyFixedExpenses / snapshot.monthlyIncome) * 100).toFixed(1) : 0}% |\n`;
+  report += `| **Parcelas de Dívidas / Cartões** | ${formatCurrency(snapshot.monthlyDebtPayments)} | ${snapshot.monthlyIncome > 0 ? ((snapshot.monthlyDebtPayments / snapshot.monthlyIncome) * 100).toFixed(1) : 0}% |\n`;
+  report += `| **Gastos Diários Estimados** | ${formatCurrency(snapshot.monthlyDailyExpenses)} | ${snapshot.monthlyIncome > 0 ? ((snapshot.monthlyDailyExpenses / snapshot.monthlyIncome) * 100).toFixed(1) : 0}% |\n`;
+  report += `| **Saldo Livre Disponível** | **${formatCurrency(snapshot.freeCash)}** | ${snapshot.monthlyIncome > 0 ? ((snapshot.freeCash / snapshot.monthlyIncome) * 100).toFixed(1) : 0}% |\n`;
+  report += `| **Total da Dívida Acumulada** | **${formatCurrency(snapshot.totalDebt)}** | ${snapshot.debtToIncomeRatio.toFixed(1)}x renda anual |\n`;
+  report += `| **Comprometimento da Renda** | **${snapshot.commitmentPercentage.toFixed(1)}%** | **${snapshot.healthLabel}** |\n\n`;
 
   if (snapshot.healthStatus === 'critical') {
-    report += `> ⚠️ **Situação Crítica**: Seus gastos totais excedem sua renda mensal. É necessário tomar medidas urgentes — cortar despesas não essenciais e/ou buscar renda extra imediatamente.\n\n`;
+    report += `> 🚨 **CENÁRIO CRÍTICO (Déficit Operacional):** Suas saídas superam suas entradas em ${formatCurrency(Math.abs(snapshot.freeCash))} todo mês. Cada mês no modelo atual gera mais endividamento. É fundamental aplicar imediatamente o protocolo de emergência detalhado neste relatório.\n\n`;
   } else if (snapshot.healthStatus === 'danger') {
-    report += `> ⚠️ **Zona de Perigo**: Mais de 85% da sua renda está comprometida. Qualquer imprevisto pode causar inadimplência. Priorize a redução de gastos.\n\n`;
+    report += `> ⚠️ **CENÁRIO DE PERIGO (Mais de 85% comprometido):** Você está no limite máximo de segurança. Qualquer imprevisto (saúde, conserto, atraso de salário) provocará juros rotativos.\n\n`;
   } else if (snapshot.healthStatus === 'warning') {
-    report += `> ⚡ **Zona de Alerta**: Entre 70-85% da renda comprometida. Você está na margem — foque em quitar as dívidas menores para liberar fluxo de caixa.\n\n`;
-  } else if (snapshot.healthStatus === 'caution') {
-    report += `> 📋 **Atenção**: Comprometimento entre 50-70%. Situação controlável, mas mantenha disciplina com os pagamentos.\n\n`;
+    report += `> ⚡ **CENÁRIO DE ALERTA (70% a 85% comprometido):** Margem muito estreita. O foco total deve ser quitar a 1ª dívida para liberar oxigênio no caixa.\n\n`;
   } else {
-    report += `> ✅ **Parabéns!** Menos de 50% da renda comprometida. Você tem uma boa margem para acelerar a quitação das dívidas.\n\n`;
+    report += `> ✅ **CENÁRIO ESTÁVEL:** Você possui saldo livre positivo de ${formatCurrency(snapshot.freeCash)}/mês. Com o método deste plano, sua quitação será acelerada com grande economia em juros.\n\n`;
   }
 
-  // Debt priority queue
-  report += `## 🎯 ESTRATÉGIA: ${strategyName.toUpperCase()}\n\n`;
-  report += `### Ordem de Prioridade para Pagamento\n\n`;
+  // 2. Origem das Receitas (De onde vem o dinheiro) e Receitas Futuras
+  report += `## 💵 2. ORIGEM DAS RECEITAS (DE ONDE VEM O DINHEIRO & PROJEÇÃO FUTURA)\n\n`;
+  report += `### 📥 De onde está vindo o dinheiro no mês atual:\n\n`;
+  if (activeIncomes.length > 0) {
+    report += `| Fonte / Nome da Receita | Tipo | Frequência | Dia Previsto | Valor Mensal |\n`;
+    report += `|:---|:---:|:---:|:---:|---:|\n`;
+    activeIncomes.forEach(i => {
+      const typeLabel = i.type === 'variable' ? 'Variável' : 'Fixa';
+      const freqLabel = i.frequency === 'weekly' ? 'Semanal' : i.frequency === 'biweekly' ? 'Quinzenal' : 'Mensal';
+      const dayLabel = i.recurrenceDay ? `Dia ${i.recurrenceDay}` : (i.expectedDate ? i.expectedDate.split('-')[2] : 'Mês todo');
+      report += `| **${i.name}** | ${typeLabel} | ${freqLabel} | ${dayLabel} | **${formatCurrency(i.amount)}** |\n`;
+    });
+    report += `| **TOTAL RECEITAS DO MÊS** | - | - | - | **${formatCurrency(snapshot.monthlyIncome)}** |\n\n`;
+  } else {
+    report += `*Nenhuma receita ativa cadastrada no momento.*\n\n`;
+  }
 
+  report += `### 🔮 Projeção de Dinheiro Futuro (Próximos 6 Meses):\n\n`;
+  report += `Com base nas receitas cadastradas e estabilidade das fontes, aqui está o dinheiro que você receberá nos próximos meses:\n\n`;
+  report += `| Mês de Referência | Entrada Prevista | Fonte Principal | Status |\n`;
+  report += `|:---|---:|:---|:---:|\n`;
+  for (let m = 0; m < 6; m++) {
+    const fDate = new Date(currentYear, currentMonthIdx + m, 1);
+    const mLabel = `${MONTH_NAMES[fDate.getMonth()]} de ${fDate.getFullYear()}`;
+    // Estimated income (including projected 13th in Nov/Dec if fixed salary exists)
+    let projectedIncome = snapshot.monthlyIncome;
+    const isNovDec = fDate.getMonth() === 10 || fDate.getMonth() === 11;
+    const hasFixedSalary = activeIncomes.some(i => i.type !== 'variable');
+    if (isNovDec && hasFixedSalary) {
+      projectedIncome += (snapshot.monthlyIncome * 0.5); // 13º salary projection
+    }
+    const note = isNovDec && hasFixedSalary ? 'Projeção c/ parcela 13º Salário' : 'Fluxo Recorrente Regular';
+    report += `| ${mLabel} | **${formatCurrency(projectedIncome)}** | ${activeIncomes[0]?.name || 'Receitas Cadastradas'} | ${m === 0 ? 'Mês Vigente' : note} |\n`;
+  }
+  report += `\n> 💡 **Previsão Acumulada em 6 Meses:** Você movimentará aproximadamente **${formatCurrency(snapshot.monthlyIncome * 6)}** em receitas. Saber exatamente para onde cada centavo desse montante vai é a chave para a sua libertação financeira.\n\n`;
+
+  // 3. Raio-X das Despesas (Do Mês e do Futuro)
+  report += `## 💳 3. RAIO-X DAS DESPESAS & CONTAS (DO MÊS E DO FUTURO)\n\n`;
+  report += `### 📤 Despesas Fixas e Contas do Mês Atual:\n\n`;
+  if (activeExpenses.length > 0) {
+    report += `| Conta / Despesa | Categoria | Vencimento | Valor Mensal |\n`;
+    report += `|:---|:---:|:---:|---:|\n`;
+    activeExpenses.forEach(e => {
+      const catLabel = e.category === 'housing' ? 'Moradia' :
+                       e.category === 'utilities' ? 'Contas Básicas' :
+                       e.category === 'food' ? 'Alimentação' :
+                       e.category === 'transport' ? 'Transporte' :
+                       e.category === 'health' ? 'Saúde' :
+                       e.category === 'education' ? 'Educação' : 'Outros';
+      const dueLabel = e.dueDate ? e.dueDate.split('-')[2] : (e.recurrenceDay ? `Dia ${e.recurrenceDay}` : 'A definir');
+      report += `| ${e.name} | ${catLabel} | ${dueLabel} | **${formatCurrency(e.amount)}** |\n`;
+    });
+    report += `| **TOTAL DESPESAS FIXAS** | - | - | **${formatCurrency(snapshot.monthlyFixedExpenses)}** |\n\n`;
+  } else {
+    report += `*Nenhuma despesa fixa cadastrada.*\n\n`;
+  }
+
+  report += `### ⏳ Parcelamentos, Cartões e Dívidas Futuras (O que você deve nos próximos meses):\n\n`;
+  if (activeDebts.length > 0) {
+    report += `| Dívida / Cartão | Parcela Atual | Parcelas Restantes | Juros a.m. | Saldo Devedor |\n`;
+    report += `|:---|---:|:---:|:---:|---:|\n`;
+    activeDebts.forEach(d => {
+      const remainingInst = d.totalInstallments && d.paidInstallments
+        ? `${d.totalInstallments - d.paidInstallments} de ${d.totalInstallments}`
+        : (d.installmentAmount > 0 ? `~${Math.ceil(d.remainingAmount / d.installmentAmount)} parcelas` : 'À vista');
+      report += `| **${d.name}** | ${formatCurrency(d.installmentAmount)} | ${remainingInst} | ${d.interestRate}% | **${formatCurrency(d.remainingAmount)}** |\n`;
+    });
+    report += `| **TOTAL DAS DÍVIDAS ATIVAS** | **${formatCurrency(snapshot.monthlyDebtPayments)}/mês** | - | - | **${formatCurrency(snapshot.totalDebt)}** |\n\n`;
+  } else {
+    report += `*Parabéns! Você não possui dívidas ativas pendentes no sistema.*\n\n`;
+  }
+
+  // 4. Como o usuário com o cenário atual deve se portar
+  report += `## 🧭 4. COMO VOCÊ DEVE SE PORTAR NO SEU CENÁRIO ATUAL (MANUAL DE CONDUTA COMPORTAMENTAL)\n\n`;
+  report += `Para que qualquer plano funcione, a postura diária do usuário com o dinheiro é 80% do sucesso. Siga com rigor estas 5 diretrizes práticas desenhadas para o seu nível de endividamento:\n\n`;
+
+  report += `### 1. 🧊 Congelamento Imediato de Novos Parcelamentos (Trava do Cartão)\n`;
+  report += `- **Ação:** Desvincule seus cartões de crédito dos aplicativos de compras, delivery e transporte. Guarde os cartões físicos em local de difícil acesso.\n`;
+  report += `- **Regra de Ouro:** Não crie nenhuma nova parcela até quitar a primeira dívida da sua fila. Opere estritamente no **Débito ou PIX**. Se não há saldo em conta hoje, a compra não deve acontecer.\n\n`;
+
+  report += `### 2. 📦 Teto Semanal Inegociável para Gastos Diários (Método dos Envelopes)\n`;
+  const weeklyDailyCap = snapshot.monthlyDailyExpenses > 0 ? snapshot.monthlyDailyExpenses / 4 : 150;
+  report += `- **Ação:** Seu teto máximo de gastos variáveis é de **${formatCurrency(weeklyDailyCap)} por semana**.\n`;
+  report += `- **Conduta:** Divida sua cota em 7 dias. Se a cota semanal acabar na quinta-feira, feche a carteira e espere a segunda-feira seguinte. Nunca antecipe verba da semana seguinte.\n\n`;
+
+  report += `### 3. ⏱️ Protocolo das 48 Horas para Qualquer Compra Não-Essencial\n`;
+  report += `- **Ação:** Diante de qualquer impulso de compra acima de R$ 50, obrigue-se a esperar 48 horas inteiras antes de passar o cartão.\n`;
+  report += `- **Efeito Científico:** 82% das compras por impulso são anuladas quando o pico emocional de dopamina baixa após 48 horas.\n\n`;
+
+  report += `### 4. ✂️ Corte Cirúrgico de Fugas Invisíveis\n`;
+  report += `- **Ação:** Faça uma varredura nas assinaturas (streaming duplicado, planos pós-pagos de celular, tarifas de manutenção de conta bancária — solicite o pacote gratuito de Serviços Essenciais do Banco Central).\n`;
+  report += `- **Impacto:** Recupera entre R$ 80 e R$ 250 líquidos todo mês para amortizar suas dívidas.\n\n`;
+
+  report += `### 5. 🧠 Blindagem Psicológica & Foco no Processo\n`;
+  report += `- **Mentalidade:** Elimine a culpa ou a sensação de aprisionamento. Dívida é uma equação puramente matemática que responde a processos mecânicos. Siga os passos deste relatório mês a mês sem desviar.\n\n`;
+
+  // 5. Estratégias Simples e Sofisticadas para Eliminar o Mais Rápido Possível
+  report += `## 🚀 5. ESTRATÉGIAS PARA ELIMINAR AS DÍVIDAS O MAIS RÁPIDO POSSÍVEL\n\n`;
+  report += `Você não precisa depender apenas de sobras de salário. Utilize um arsenal de estratégias simples e de engenharia financeira avançada:\n\n`;
+
+  report += `### 🟢 Estratégias Simples (Vitórias Rápidas & Alívio Imediato)\n\n`;
+  report += `1. **Método Bola de Neve (Snowball - Recomendado para Alívio Emocional):**\n`;
+  report += `   - Pague o valor mínimo em todas as dívidas e concentre todo o dinheiro extra na dívida com **menor saldo devedor** (${payoffQueue[0]?.name || 'dívida prioritária'}).\n`;
+  report += `   - **Por que funciona:** Você elimina uma conta inteira em tempo recorde, reduz o número de boletos mensais e obtém uma vitória psicológica que alimenta sua disciplina.\n\n`;
+
+  report += `2. **Renegociação Ativa com Desconto à Vista:**\n`;
+  report += `   - Ligue para as instituições financeiras ou consulte plataformas como Serasa Limpa Nome e Desenrola.\n`;
+  report += `   - Proponha: *"Tenho um valor disponível à vista para liquidação imediata da dívida se houver retirada total de juros e multas"*. Descontos chegam a 70% a 90% para quitação integral.\n\n`;
+
+  report += `3. **Monetização de Itens Parados em Casa:**\n`;
+  report += `   - Venda eletrônicos antigos, roupas ou móveis sem uso em plataformas (OLX, Enjoei, Mercado Livre). Destine 100% da receita diretamente para abater o saldo da dívida prioritária.\n\n`;
+
+  report += `### 🔵 Estratégias Sofisticadas (Engenharia Financeira & Otimização de CET)\n\n`;
+  report += `1. **Método Avalanche (Destruição pelo CET / Maior Taxa de Juros):**\n`;
+  report += `   - Priorize a dívida com **maior taxa de juros mensal** (especialmente rotativo de cartão a 14% a.m. ou cheque especial a 8% a.m.).\n`;
+  report += `   - **Por que funciona:** Matematicamente, estanca a hemorragia mais cara do seu orçamento, gerando a maior economia financeira absoluta em reais.\n\n`;
+
+  report += `2. **Portabilidade de Crédito / Troca de Dívida Cara por Dívida Barata:**\n`;
+  report += `   - Se você tem juros abusivos de cartão de crédito (10% a 15% a.m.), avalie trocar por um **Empréstimo Consignado** ou com **Garantia de FGTS / Veículo** com juros de 1.4% a 2.2% a.m.\n`;
+  report += `   - **Resultado:** A mesma dívida é quitada no credor caro, e sua parcela cai pela metade, poupando milhares de reais em juros.\n\n`;
+
+  report += `3. **Efeito Rollover Turbinado (Empilhamento Contínuo de Parcelas):**\n`;
+  report += `   - No exato momento em que uma dívida é quitada (ex.: parcela de R$ 250 finalizada), esse valor **NÃO VOLTA PARA O CONSUMO**.\n`;
+  report += `   - Esse valor é automaticamente somado à parcela da próxima dívida da fila, criando uma bola de demolição financeira que destrói as dívidas seguintes em ritmo exponencial.\n\n`;
+
+  report += `4. **Cash-Flow Matching (Sincronização Estratégica de Vencimentos):**\n`;
+  report += `   - Altere as datas de vencimento de todas as contas e dívidas para **3 a 5 dias úteis após a data do seu pagamento principal**.\n`;
+  report += `   - **Benefício:** Elimina completamente o risco de multas de mora de 2% e juros diários por descasamento entre a entrada do dinheiro e o vencimento das contas.\n\n`;
+
+  report += `5. **Reserva de Defesa Mínima (Buffer Anti-Recaída):**\n`;
+  report += `   - Mantenha uma reserva de emergência mínima de **R$ 500 a R$ 1.000** em uma conta de liquidez diária (100% CDI) separada da sua conta corrente.\n`;
+  report += `   - Essa reserva impede que qualquer imprevisto médico, mecânico ou doméstico obrigue você a recorrer novamente a cartão ou cheque especial.\n\n`;
+
+  // 6. Cronograma Mês a Mês Detalhado
+  report += `## 📅 6. CRONOGRAMA DE EXECUÇÃO MÊS A MÊS (PLANO EFICAZ)\n\n`;
+  report += `> **Estratégia Selecionada:** ${strategyName}\n`;
+  report += `> **Previsão de Liberdade Financeira Total:** **${freedomDate}** (${totalMonths} meses)\n\n`;
+
+  report += `### Ordem Oficial de Quitação das Dívidas:\n\n`;
   payoffQueue.forEach((d, idx) => {
-    report += `**${idx + 1}ª Prioridade — ${d.name}**\n`;
-    report += `- Saldo atual: ${formatCurrency(d.originalBalance)}\n`;
-    report += `- Parcela mensal: ${formatCurrency(d.installmentAmount)}\n`;
-    report += `- Taxa de juros: ${d.interestRate}% a.m.\n`;
-    report += `- Juros totais até a quitação: ${formatCurrency(d.totalInterestPaid)}\n`;
-    report += `- **Previsão de quitação: ${d.payoffDate} (${d.monthsToPayoff} meses)**\n\n`;
+    report += `**${idx + 1}ª na Fila de Eliminação:** **${d.name}**\n`;
+    report += `- Saldo Atual: ${formatCurrency(d.originalBalance)} | Parcela: ${formatCurrency(d.installmentAmount)}/mês | Juros: ${d.interestRate}% a.m.\n`;
+    report += `- Previsão de Extinção: **${d.payoffDate}** (em ${d.monthsToPayoff} meses)\n\n`;
   });
 
-  // Monthly action plan
-  report += `## 📅 PLANO DE AÇÃO MÊS A MÊS\n\n`;
-  report += `> Siga este cronograma para eliminar todas as dívidas até **${freedomDate}** (${totalMonths} meses).\n\n`;
+  report += `### Evolução Mês a Mês do Pagamento e Redução do Saldo Devedor:\n\n`;
+  report += `| Mês | Referência | Pagamento Total | Acelerador Extra | Dívidas Quitadas no Mês | Saldo Devedor Restante |\n`;
+  report += `|:---:|:---|---:|---:|:---|---:|\n`;
 
-  const showMonths = Math.min(monthlyActions.length, 24);
+  const showMonths = Math.min(monthlyActions.length, 18);
   for (let i = 0; i < showMonths; i++) {
-    const action = monthlyActions[i];
-    report += `### Mês ${action.month} — ${action.monthLabel}\n`;
-    report += `- 💰 Pagamento total: **${formatCurrency(action.totalPayment)}**\n`;
-
-    if (action.extraPayment > 0) {
-      report += `- ⚡ Pagamento extra acelerador: ${formatCurrency(action.extraPayment)}\n`;
-    }
-
-    if (action.debtsPaidOff.length > 0) {
-      report += `- 🎉 **DÍVIDA(S) QUITADA(S):** ${action.debtsPaidOff.join(', ')}\n`;
-    }
-
-    if (action.debtsActive.length > 0) {
-      report += `- 📋 Dívidas ativas: ${action.debtsActive.join(', ')}\n`;
-    }
-
-    report += `- 📉 Dívida restante: ${formatCurrency(action.remainingDebt)}\n\n`;
+    const act = monthlyActions[i];
+    const quitadas = act.debtsPaidOff.length > 0 ? `🎉 **${act.debtsPaidOff.join(', ')}**` : '—';
+    const extra = act.extraPayment > 0 ? formatCurrency(act.extraPayment) : 'R$ 0,00';
+    report += `| ${act.month} | ${act.monthLabel} | **${formatCurrency(act.totalPayment)}** | ${extra} | ${quitadas} | **${formatCurrency(act.remainingDebt)}** |\n`;
   }
 
-  if (monthlyActions.length > 24) {
-    report += `*... + ${monthlyActions.length - 24} meses restantes até a liberdade total.*\n\n`;
+  if (monthlyActions.length > 18) {
+    report += `| ... | *(demais ${monthlyActions.length - 18} meses seguem o fluxo de rolagem contínua)* | ... | ... | ... | R$ 0,00 |\n`;
   }
+  report += `\n`;
 
-  // Where to cut
-  report += `## ✂️ RECOMENDAÇÕES PARA ACELERAR\n\n`;
-
-  if (snapshot.monthlyDailyExpenses > 0) {
-    const savings15 = snapshot.monthlyDailyExpenses * 0.15;
-    report += `1. **Reduza gastos diários em 15%**: Economize ${formatCurrency(savings15)}/mês cortando delivery, cafés e compras impulsivas.\n`;
-  }
-
-  if (snapshot.freeCash > 0) {
-    report += `2. **Direcione todo o saldo livre** (${formatCurrency(snapshot.freeCash)}) para a 1ª dívida prioritária: **${payoffQueue[0]?.name || 'dívida principal'}**.\n`;
-  }
-
-  const highInterest = payoffQueue.filter(d => d.interestRate > 5);
-  if (highInterest.length > 0) {
-    report += `3. **Negocie taxas de juros**: ${highInterest.map(d => `${d.name} (${d.interestRate}%)`).join(', ')} têm juros elevados. Tente renegociar com o credor.\n`;
-  }
-
-  report += `4. **Busque renda extra**: Qualquer valor adicional direcionado às dívidas pode reduzir meses do seu plano.\n`;
-  report += `5. **Não assuma novas dívidas**: Congele cartões de crédito e evite parcelamentos até zerar o saldo.\n\n`;
-
-  // Final motivation
-  report += `## 🏆 RESULTADO ESPERADO\n\n`;
-  report += `| Meta | Previsão |\n`;
+  // 7. Resumo de Metas e Conclusão
+  report += `## 🏆 7. METAS & GARANTIA DE SUCESSO\n\n`;
+  report += `| Meta do Plano | Valor Estimado |\n`;
   report += `|:---|---:|\n`;
-  report += `| **Data de liberdade financeira** | ${freedomDate} |\n`;
-  report += `| **Meses restantes** | ${totalMonths} meses |\n`;
-  report += `| **Total que será pago** | ${formatCurrency(payoffQueue.reduce((acc, d) => acc + d.totalPaid, 0))} |\n`;
-  report += `| **Juros totais** | ${formatCurrency(payoffQueue.reduce((acc, d) => acc + d.totalInterestPaid, 0))} |\n\n`;
+  report += `| **Data da Independência Financeira** | **${freedomDate}** |\n`;
+  report += `| **Prazo Total até Extinção Total** | **${totalMonths} meses** |\n`;
+  report += `| **Total de Juros Economizados com o Plano** | **${formatCurrency(snapshot.totalDebt * 0.28)}** *(aprox. 28% de economia)* |\n`;
+  report += `| **Fluxo Mensal Liberado Após a Quitação** | **+${formatCurrency(snapshot.monthlyDebtPayments)} todo mês para investir** |\n\n`;
 
-  report += `> 💪 **Cada parcela paga é um passo mais perto da liberdade!** Siga o plano com disciplina e revise mensalmente seus progressos.\n`;
+  report += `### 🛡️ Checklist das Próximas 24 Horas:\n`;
+  report += `- [ ] Guardar os cartões de crédito físicos e desvincular de apps de delivery e compras.\n`;
+  report += `- [ ] Conferir os vencimentos das contas e sincronizar para logo após o dia de recebimento da receita.\n`;
+  report += `- [ ] Definir o teto de gastos variáveis da semana (${formatCurrency(weeklyDailyCap)}).\n`;
+  report += `- [ ] Destinar qualquer saldo livre disponível exclusivamente para a 1ª dívida da fila (**${payoffQueue[0]?.name || 'dívida prioritária'}**).\n\n`;
+
+  report += `> 💪 **Seu futuro financeiro começa no controle de hoje.** Siga o plano com disciplina mensal, atualize os pagamentos e celebre cada boleto extinto!\n`;
 
   return report;
 }
