@@ -41,6 +41,11 @@ export interface Debt {
   isPaid?: boolean;
   paymentDate?: string;
   category?: DebtCategory;
+  paidAmount?: number;
+  originalAmount?: number;
+  extraCredit?: number;
+  cardLimit?: number;
+  bank?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -83,6 +88,9 @@ export interface Expense {
   interestRate?: number;
   totalInstallments?: number;
   installmentNumber?: number;
+  paidAmount?: number;
+  originalAmount?: number;
+  extraCredit?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
@@ -96,6 +104,7 @@ export interface PaymentLog {
   amountPaid: number;
   paymentDate: string;
   note?: string;
+  extraCredit?: number;
   createdAt: string;
 }
 

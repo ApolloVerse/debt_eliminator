@@ -58,6 +58,7 @@ export const Payments = () => {
     
     try {
       const parsedAmount = parseCurrency(data.amountPaid);
+      const excess = Math.max(0, parsedAmount - selectedDebt.remainingAmount);
       const newRemaining = Math.max(0, selectedDebt.remainingAmount - parsedAmount);
       const isNowPaid = newRemaining === 0;
       
@@ -69,12 +70,15 @@ export const Payments = () => {
         newPaidInstallments += 1;
       }
       
+      const newExtraCredit = (Number(selectedDebt.extraCredit) || 0) + excess;
+
       // Update debt
       const updatePayload: any = {
         remainingAmount: newRemaining,
         paidInstallments: newPaidInstallments,
         isPaid: isNowPaid ? true : selectedDebt.isPaid,
         paymentDate: isNowPaid ? new Date().toISOString().split('T')[0] : selectedDebt.paymentDate,
+        extraCredit: newExtraCredit,
         updatedAt: new Date().toISOString()
       };
 
@@ -87,15 +91,20 @@ export const Payments = () => {
         userId: user.id,
         debtId: selectedDebt.id,
         amountPaid: parsedAmount,
+        extraCredit: newExtraCredit,
         paymentDate: new Date().toISOString(),
-        note: data.note,
+        note: excess > 0 ? `${data.note || 'Amortização'} (+${formatCurrency(excess)} em crédito excedente)` : data.note,
         debtName: selectedDebt.name,
         createdAt: new Date().toISOString()
       }]);
 
       if (err2) throw err2;
 
-      toast.success('Amortização registrada com sucesso!');
+      if (excess > 0) {
+        toast.success(`Amortização concluída! +${formatCurrency(excess)} inseridos como crédito excedente.`);
+      } else {
+        toast.success('Amortização registrada com sucesso!');
+      }
       reset({ debtId: '', amountPaid: 0, note: '', isEarlyPayment: false, installmentsReduced: 1 });
       await fetchDebts();
     } catch (error) {

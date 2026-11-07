@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Debt, Expense, Income } from '../types';
 import { Title, BrutalButton, BrutalCard, BrutalLabel, BrutalInput, BrutalSelect } from '../components/BrutalUI';
 import { Modal } from '../components/Modal';
+import { PayInvoiceModal, PayTargetItem } from '../components/PayInvoiceModal';
 import { formatCurrency } from '../lib/utils';
 import {
   Plus, Pencil, Trash2, Landmark, CreditCard,
@@ -89,6 +90,8 @@ export const Debts = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [togglingExpenseId, setTogglingExpenseId] = useState<string | null>(null);
+  const [payTargetItem, setPayTargetItem] = useState<PayTargetItem | null>(null);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
 
   const { register, handleSubmit, reset, watch, control, setValue } = useForm<any>();
   const { fields: futureBillsFields, append, remove } = useFieldArray({ control, name: 'futureBills' });
@@ -225,45 +228,104 @@ export const Debts = () => {
     }
   }, []);
 
+  // ── Open Payment Modal for Debt or Expense ────────────────────────────────
+  const openPayForDebt = (debt: Debt) => {
+    setPayTargetItem({
+      id: debt.id,
+      name: debt.name,
+      amount: Number(debt.remainingAmount) || 0,
+      originalAmount: Number(debt.totalAmount) || Number(debt.remainingAmount) || 0,
+      paidAmount: Number(debt.paidAmount) || 0,
+      extraCredit: Number(debt.extraCredit) || 0,
+      category: debt.category,
+      bank: debt.bank,
+      dueDate: debt.dueDate,
+      cardLimit: Number(debt.cardLimit) || 0,
+      isExpense: false,
+      paidInstallments: Number(debt.paidInstallments) || 0,
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const openPayForExpense = (expense: Expense) => {
+    const meta = extractExpenseMeta(expense);
+    setPayTargetItem({
+      id: expense.id,
+      name: expense.name,
+      amount: Number(expense.amount) || 0,
+      originalAmount: meta.originalAmount || Number(expense.amount) || 0,
+      paidAmount: meta.paidAmount || 0,
+      extraCredit: meta.extraCredit || 0,
+      category: expense.category,
+      bank: expense.bank,
+      dueDate: expense.dueDate,
+      cardLimit: Number(expense.cardLimit) || 0,
+      isExpense: true,
+      paidInstallments: Number(expense.installmentNumber) || 0,
+    });
+    setIsPayModalOpen(true);
+  };
+
   // ── Toggle paid/pending for debts ──────────────────────────────────────────
   const togglePaid = async (debt: Debt) => {
-    setTogglingId(debt.id);
-    try {
-      const nowPaid = !debt.isPaid;
-      const update: any = {
-        isPaid: nowPaid,
-        paymentDate: nowPaid ? new Date().toISOString().split('T')[0] : null,
-        paidInstallments: nowPaid
-          ? Math.min(debt.paidInstallments + 1, debt.totalInstallments)
-          : Math.max(0, debt.paidInstallments - 1),
-        updatedAt: new Date().toISOString(),
-      };
-      await supabase.from('debts').update(update).eq('id', debt.id);
-      toast.success(nowPaid ? '✅ Marcado como pago!' : '⏳ Marcado como pendente');
-      await fetchDebts();
-    } catch {
-      toast.error('Erro ao atualizar status');
-    } finally {
-      setTogglingId(null);
+    if (debt.isPaid) {
+      // Reopen
+      setTogglingId(debt.id);
+      try {
+        const update: any = {
+          isPaid: false,
+          paymentDate: null,
+          remainingAmount: Number(debt.originalAmount) || Number(debt.totalAmount) || Number(debt.remainingAmount) || 0,
+          paidInstallments: Math.max(0, (debt.paidInstallments || 1) - 1),
+          extraCredit: 0,
+          updatedAt: new Date().toISOString(),
+        };
+        await supabase.from('debts').update(update).eq('id', debt.id);
+        toast.success('⏳ Marcado como pendente');
+        await fetchDebts();
+      } catch {
+        toast.error('Erro ao atualizar status');
+      } finally {
+        setTogglingId(null);
+      }
+    } else {
+      openPayForDebt(debt);
     }
   };
 
   // ── Toggle paid/pending for card & loan & other expenses ───────────────────
   const toggleExpensePaid = async (expense: Expense) => {
-    setTogglingExpenseId(expense.id);
-    try {
-      const nowPaid = !expense.isPaid;
-      await supabase.from('expenses').update({
-        isPaid: nowPaid,
-        paymentDate: nowPaid ? new Date().toISOString().split('T')[0] : null,
-        updatedAt: new Date().toISOString(),
-      }).eq('id', expense.id);
-      toast.success(nowPaid ? '✅ Conta marcada como paga!' : '⏳ Conta marcada como pendente');
-      await fetchDebts();
-    } catch {
-      toast.error('Erro ao atualizar status da conta');
-    } finally {
-      setTogglingExpenseId(null);
+    if (expense.isPaid) {
+      // Reopen
+      setTogglingExpenseId(expense.id);
+      try {
+        const meta = extractExpenseMeta(expense);
+        const original = meta.originalAmount || expense.amount;
+        const updatedMeta = {
+          ...meta,
+          paidAmount: 0,
+          extraCredit: 0,
+          originalAmount: original,
+        };
+        await supabase.from('expenses').update({
+          isPaid: false,
+          paymentDate: null,
+          amount: original,
+          paidAmount: 0,
+          extraCredit: 0,
+          originalAmount: original,
+          type: JSON.stringify(updatedMeta),
+          updatedAt: new Date().toISOString(),
+        }).eq('id', expense.id);
+        toast.success('⏳ Conta marcada como pendente');
+        await fetchDebts();
+      } catch {
+        toast.error('Erro ao atualizar status da conta');
+      } finally {
+        setTogglingExpenseId(null);
+      }
+    } else {
+      openPayForExpense(expense);
     }
   };
 
@@ -1844,6 +1906,13 @@ export const Debts = () => {
         <Plus className="w-7 h-7 stroke-[3]" />
       </button>
 
+      {/* Pay Invoice & Debt Modal with Custom Amounts & Excess Credit */}
+      <PayInvoiceModal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        item={payTargetItem}
+        onSuccess={fetchDebts}
+      />
     </div>
   );
 };

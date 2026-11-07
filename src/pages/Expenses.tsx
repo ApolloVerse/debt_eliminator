@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { Expense } from "../types";
 import { Title, BrutalButton, BrutalLabel, BrutalInput } from "../components/BrutalUI";
 import { Modal } from "../components/Modal";
+import { PayInvoiceModal, PayTargetItem } from "../components/PayInvoiceModal";
 import { CategorySelect } from "../components/CategorySelect";
 import { formatCurrency, parseCurrency, addMonthsToDate, cn } from "../lib/utils";
 import { 
@@ -85,6 +86,9 @@ export const extractExpenseMeta = (expense: Expense) => {
   let totalInstallments = Number(expense.totalInstallments) || 0;
   let installmentNumber = Number(expense.installmentNumber) || 0;
   let baseType = expense.type || 'fixed';
+  let paidAmount = Number(expense.paidAmount) || 0;
+  let originalAmount = Number(expense.originalAmount) || Number(expense.amount) || 0;
+  let extraCredit = Number(expense.extraCredit) || 0;
 
   if (typeof expense.type === 'string' && expense.type.startsWith('{')) {
     try {
@@ -93,10 +97,13 @@ export const extractExpenseMeta = (expense: Expense) => {
       if (parsed.totalInstallments !== undefined && !totalInstallments) totalInstallments = Number(parsed.totalInstallments) || 0;
       if (parsed.installmentNumber !== undefined && !installmentNumber) installmentNumber = Number(parsed.installmentNumber) || 0;
       if (parsed.baseType) baseType = parsed.baseType;
+      if (parsed.paidAmount !== undefined && !paidAmount) paidAmount = Number(parsed.paidAmount) || 0;
+      if (parsed.originalAmount !== undefined && !originalAmount) originalAmount = Number(parsed.originalAmount) || 0;
+      if (parsed.extraCredit !== undefined && !extraCredit) extraCredit = Number(parsed.extraCredit) || 0;
     } catch {}
   }
 
-  return { interestRate, totalInstallments, installmentNumber, baseType };
+  return { interestRate, totalInstallments, installmentNumber, baseType, paidAmount, originalAmount, extraCredit };
 };
 
 export const cleanBaseName = (name: string) => {
@@ -121,6 +128,7 @@ export interface CardGroup {
   totalCommitted: number;
   availableLimit: number;
   usagePct: number;
+  totalExtraCredit: number;
 }
 
 export interface LoanGroup {
@@ -166,6 +174,8 @@ export const Expenses = () => {
   const [tab, setTab] = useState<"normal" | "cards" | "loans" | "pending" | "paid" | "future" | "all">("normal");
   const [selectedBank, setSelectedBank] = useState<string>("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [payTargetItem, setPayTargetItem] = useState<PayTargetItem | null>(null);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
 
   // Month filtering state (YYYY-MM)
   const currentMonthKey = (() => {
@@ -305,19 +315,61 @@ export const Expenses = () => {
     setIsModalOpen(true);
   };
 
-  const togglePaid = async (expense: Expense) => {
+  const openPayModalForExpense = (expense: Expense) => {
+    const meta = extractExpenseMeta(expense);
+    setPayTargetItem({
+      id: expense.id,
+      name: expense.name,
+      amount: Number(expense.amount) || 0,
+      originalAmount: meta.originalAmount || Number(expense.amount) || 0,
+      paidAmount: meta.paidAmount || 0,
+      extraCredit: meta.extraCredit || 0,
+      category: expense.category,
+      bank: expense.bank,
+      dueDate: expense.dueDate,
+      cardLimit: Number(expense.cardLimit) || 0,
+      isExpense: true,
+      paidInstallments: Number(expense.installmentNumber) || 0,
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const reopenExpense = async (expense: Expense) => {
     setTogglingId(expense.id);
     try {
-      const nowPaid = !expense.isPaid;
+      const meta = extractExpenseMeta(expense);
+      const original = meta.originalAmount || expense.amount;
+      const updatedMeta = {
+        ...meta,
+        paidAmount: 0,
+        extraCredit: 0,
+        originalAmount: original,
+      };
       await supabase.from("expenses").update({
-        isPaid: nowPaid,
-        paymentDate: nowPaid ? new Date().toISOString().split("T")[0] : null,
+        isPaid: false,
+        paymentDate: null,
+        amount: original,
+        paidAmount: 0,
+        extraCredit: 0,
+        originalAmount: original,
+        type: JSON.stringify(updatedMeta),
         updatedAt: new Date().toISOString(),
       }).eq("id", expense.id);
-      toast.success(nowPaid ? "Marcado como pago!" : "Marcado como pendente");
+      toast.success("Fatura reaberta como pendente");
       await fetchExpenses();
-    } catch { toast.error("Erro ao atualizar status"); }
-    finally { setTogglingId(null); }
+    } catch {
+      toast.error("Erro ao reabrir fatura");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const togglePaid = async (expense: Expense) => {
+    if (expense.isPaid) {
+      await reopenExpense(expense);
+    } else {
+      openPayModalForExpense(expense);
+    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -693,6 +745,7 @@ export const Expenses = () => {
           totalCommitted: 0,
           availableLimit: 0,
           usagePct: 0,
+          totalExtraCredit: 0,
         });
       }
 
@@ -704,21 +757,31 @@ export const Expenses = () => {
 
     const groups = Array.from(groupsMap.values()).map(grp => {
       grp.invoices.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+
+      // Calculate total extra credit accumulated from overpayments on this card
+      const totalExtraCredit = grp.invoices.reduce((acc, inv) => {
+        const meta = extractExpenseMeta(inv);
+        return acc + (Number(inv.extraCredit) || meta.extraCredit || 0);
+      }, 0);
+      grp.totalExtraCredit = totalExtraCredit;
       
       if (selectedMonth !== 'all') {
-        const monthInv = grp.invoices.find(i => i.dueDate && i.dueDate.startsWith(selectedMonth)) || null;
-        grp.currentInvoice = monthInv;
-        grp.unpaidInvoices = monthInv && !monthInv.isPaid ? [monthInv] : [];
-        grp.paidInvoices = monthInv && monthInv.isPaid ? [monthInv] : [];
-        grp.totalCommitted = Number(monthInv?.amount) || 0;
+        const monthInvs = grp.invoices.filter(i => i.dueDate && i.dueDate.startsWith(selectedMonth));
+        grp.unpaidInvoices = monthInvs.filter(i => !i.isPaid);
+        grp.paidInvoices = monthInvs.filter(i => !!i.isPaid);
+        grp.currentInvoice = grp.unpaidInvoices[0] || monthInvs[0] || null;
+        grp.totalCommitted = grp.unpaidInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
       } else {
         grp.unpaidInvoices = grp.invoices.filter(i => !i.isPaid);
         grp.paidInvoices = grp.invoices.filter(i => !!i.isPaid);
         grp.currentInvoice = grp.unpaidInvoices[0] || grp.invoices[grp.invoices.length - 1] || null;
         grp.totalCommitted = grp.unpaidInvoices.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
       }
-      grp.availableLimit = Math.max(0, grp.cardLimit - grp.totalCommitted);
-      grp.usagePct = grp.cardLimit > 0 ? Math.min(100, Math.round((grp.totalCommitted / grp.cardLimit) * 100)) : 0;
+
+      const baseLimit = Number(grp.cardLimit) || 0;
+      grp.availableLimit = Math.max(0, baseLimit + totalExtraCredit - grp.totalCommitted);
+      const effectiveLimit = baseLimit + totalExtraCredit;
+      grp.usagePct = effectiveLimit > 0 ? Math.min(100, Math.round((grp.totalCommitted / effectiveLimit) * 100)) : 0;
       return grp;
     });
 
@@ -812,8 +875,9 @@ export const Expenses = () => {
   const normalList = filteredExpenses.filter(isNormalExpense);
 
   const totalCardsLimit = cardGroups.reduce((acc, c) => acc + c.cardLimit, 0);
+  const totalCardsExtraCredit = cardGroups.reduce((acc, c) => acc + (c.totalExtraCredit || 0), 0);
   const totalCardsNegative = cardGroups.reduce((acc, c) => acc + c.totalCommitted, 0);
-  const totalCardsAvailable = Math.max(0, totalCardsLimit - totalCardsNegative);
+  const totalCardsAvailable = Math.max(0, totalCardsLimit + totalCardsExtraCredit - totalCardsNegative);
 
   const totalLoanRemaining = loanGroups.reduce((acc, l) => acc + (selectedMonth !== 'all' ? (Number(l.nextInstallment?.amount) || 0) : l.totalRemaining), 0);
   const totalPending = filteredExpenses.reduce((acc, e) => acc + (e.isPaid ? 0 : Number(e.amount) || 0), 0);
@@ -900,8 +964,8 @@ export const Expenses = () => {
             {card.name}
           </h3>
 
-          {/* Available Limit Badge — always visible when limit is set */}
-          {card.cardLimit > 0 && (
+          {/* Available Limit Badge — always visible when limit is set or extra credit exists */}
+          {(card.cardLimit > 0 || card.totalExtraCredit > 0) && (
             <div className="mt-1.5 mb-2 flex items-center gap-2">
               {card.availableLimit > 0 ? (
                 <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 flex-1">
@@ -910,9 +974,15 @@ export const Expenses = () => {
                     <p className="text-[8px] font-black uppercase tracking-wider text-emerald-600">Limite Disponível</p>
                     <p className="text-sm font-black text-emerald-700 leading-tight">{formatCurrency(card.availableLimit)}</p>
                   </div>
-                  <span className="ml-auto text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
-                    {100 - card.usagePct}% livre
-                  </span>
+                  {card.totalExtraCredit > 0 ? (
+                    <span className="ml-auto text-[9px] font-black text-purple-700 bg-purple-100 border border-purple-200 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5" title="Crédito excedente inserido no limite">
+                      ✨ +{formatCurrency(card.totalExtraCredit)} extra
+                    </span>
+                  ) : (
+                    <span className="ml-auto text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                      {100 - card.usagePct}% livre
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1 flex-1">
@@ -933,7 +1003,7 @@ export const Expenses = () => {
           {currentInv && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
               <div className="flex justify-between items-center text-[10px]">
-                <span className="font-black uppercase tracking-wider text-rose-600">
+                <span className={cn("font-black uppercase tracking-wider", isCurrentPaid ? "text-emerald-700" : "text-rose-600")}>
                   {isCurrentPaid ? "Fatura Paga" : "Saldo Negativo / Fatura"}
                 </span>
                 {currentInv.dueDate && (
@@ -945,11 +1015,23 @@ export const Expenses = () => {
               </div>
 
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className={cn("text-xl sm:text-2xl font-black tracking-tight", isCurrentPaid ? "text-emerald-700" : "text-rose-600")}>
-                  {formatCurrency(currentInv.amount)}
-                </p>
+                <div>
+                  <p className={cn("text-xl sm:text-2xl font-black tracking-tight", isCurrentPaid ? "text-emerald-700" : "text-rose-600")}>
+                    {formatCurrency(currentInv.amount)}
+                  </p>
+                  {currentInv.paidAmount && currentInv.paidAmount > 0 && !isCurrentPaid && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                      Já pago: {formatCurrency(currentInv.paidAmount)}
+                    </span>
+                  )}
+                  {currentInv.extraCredit && currentInv.extraCredit > 0 && (
+                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 border border-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                      ✨ +{formatCurrency(currentInv.extraCredit)} crédito inserido
+                    </span>
+                  )}
+                </div>
                 <button 
-                  onClick={() => togglePaid(currentInv)} 
+                  onClick={() => isCurrentPaid ? reopenExpense(currentInv) : openPayModalForExpense(currentInv)} 
                   disabled={togglingId === currentInv.id}
                   className={cn(
                     "text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all active:scale-[0.98] cursor-pointer shrink-0 shadow-2xs",
@@ -965,10 +1047,15 @@ export const Expenses = () => {
           )}
 
           {/* Card Limit Usage Gauge */}
-          {card.cardLimit > 0 && (
+          {(card.cardLimit > 0 || card.totalExtraCredit > 0) && (
             <div className="mt-2.5 space-y-1">
               <div className="flex justify-between text-[11px] font-bold">
-                <span className="text-sp-text-sec">Limite Total: {formatCurrency(card.cardLimit)}</span>
+                <span className="text-sp-text-sec">
+                  Limite Total: {formatCurrency(card.cardLimit)}
+                  {card.totalExtraCredit > 0 && (
+                    <span className="text-purple-600 ml-1 font-black">(+{formatCurrency(card.totalExtraCredit)} extra)</span>
+                  )}
+                </span>
                 <span className="text-sp-text-sec">Comprometido: {formatCurrency(card.totalCommitted)}</span>
               </div>
               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -1030,9 +1117,21 @@ export const Expenses = () => {
                           #{idx + 1}
                         </span>
                         <div>
-                          <p className={cn("font-bold text-xs", invPaid ? "line-through text-slate-500" : "text-slate-900")}>
-                            {formatCurrency(inv.amount)}
-                          </p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className={cn("font-bold text-xs", invPaid ? "line-through text-slate-500" : "text-slate-900")}>
+                              {formatCurrency(inv.amount)}
+                            </p>
+                            {inv.paidAmount && inv.paidAmount > 0 && !invPaid && (
+                              <span className="text-[8px] font-black text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1 py-0.2 rounded">
+                                Pago: {formatCurrency(inv.paidAmount)}
+                              </span>
+                            )}
+                            {inv.extraCredit && inv.extraCredit > 0 && (
+                              <span className="text-[8px] font-black text-purple-700 bg-purple-100/70 border border-purple-200 px-1 py-0.2 rounded">
+                                +{formatCurrency(inv.extraCredit)} extra
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[9px] text-sp-text-sec flex items-center gap-1">
                             <Calendar className="w-2.5 h-2.5" />
                             {inv.dueDate ? new Date(inv.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "2-digit" }) : "Sem data"}
@@ -1043,7 +1142,7 @@ export const Expenses = () => {
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          onClick={() => togglePaid(inv)}
+                          onClick={() => invPaid ? reopenExpense(inv) : openPayModalForExpense(inv)}
                           disabled={togglingId === inv.id}
                           className={cn(
                             "px-2 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer",
@@ -1053,7 +1152,7 @@ export const Expenses = () => {
                           )}
                         >
                           <CheckCircle2 className="w-2.5 h-2.5" />
-                          {invPaid ? "Paga" : "Pagar"}
+                          {invPaid ? "Paga (Reabrir)" : "Pagar"}
                         </button>
                         <button 
                           onClick={() => openEdit(inv)} 
@@ -2068,6 +2167,14 @@ export const Expenses = () => {
           </BrutalButton>
         </form>
       </Modal>
+
+      {/* Pay Invoice & Overdraft Modal with Custom Amounts & Excess Credit */}
+      <PayInvoiceModal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        item={payTargetItem}
+        onSuccess={fetchExpenses}
+      />
     </div>
   );
 };
